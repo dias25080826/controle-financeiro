@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1F4E78">
+<title>Controle Financeiro</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png?v=2">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Controle Fin.">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --azul-escuro:#1F4E78;
+    --azul:#2563EB;
+    --verde:#059669;
+    --laranja:#D97706;
+    --vermelho:#DC2626;
+    --roxo:#7C3AED;
+    --bg:#F3F4F6;
+    --card:#FFFFFF;
+    --texto:#111827;
+    --texto-sec:#6B7280;
+    --borda:#E5E7EB;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--texto);
+    padding-bottom:76px;
+  }
+  header{
+    background:linear-gradient(135deg,var(--azul-escuro),var(--azul));
+    color:#fff;
+    padding:20px 16px 16px;
+    position:sticky;
+    top:0;
+    z-index:10;
+  }
+  header h1{margin:0;font-size:19px;font-weight:700;}
+  header p{margin:2px 0 0;font-size:12px;opacity:.85;}
+  main{padding:14px;max-width:640px;margin:0 auto;}
+  .kpi-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-bottom:16px;
+  }
+  .kpi{
+    border-radius:14px;
+    padding:12px;
+    color:#fff;
+    min-height:64px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+  }
+  .kpi .lbl{font-size:10.5px;font-weight:700;opacity:.9;letter-spacing:.02em;text-transform:uppercase;}
+  .kpi .val{font-size:19px;font-weight:800;margin-top:2px;}
+  .kpi.total{background:var(--azul);}
+  .kpi.fixas{background:var(--verde);}
+  .kpi.nu{background:var(--laranja);}
+  .kpi.inter{background:var(--vermelho);}
+  .kpi.pct{background:var(--roxo);grid-column:1/-1;}
+
+  .card{
+    background:var(--card);
+    border-radius:14px;
+    padding:14px;
+    margin-bottom:14px;
+    box-shadow:0 1px 3px rgba(0,0,0,.06);
+  }
+  .card h2{font-size:14px;margin:0 0 10px;color:var(--azul-escuro);}
+  .row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:8px 0;
+    border-bottom:1px solid var(--borda);
+  }
+  .row:last-child{border-bottom:none;}
+  .row input[type=text]{
+    flex:1;
+    border:none;
+    background:transparent;
+    font-size:14px;
+    color:var(--texto);
+    padding:4px 0;
+  }
+  .row input[type=number]{
+    width:96px;
+    border:none;
+    background:#F9FAFB;
+    border-radius:8px;
+    padding:6px 8px;
+    font-size:14px;
+    text-align:right;
+    color:var(--texto);
+  }
+  .row select{
+    border:none;
+    background:#F9FAFB;
+    border-radius:8px;
+    padding:6px 4px;
+    font-size:11.5px;
+    color:var(--texto-sec);
+    max-width:78px;
+  }
+  .who-chip{
+    font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:999px;display:inline-block;white-space:nowrap;
+  }
+  .who-casal{background:#E0E7FF;color:#3730A3;}
+  .who-alexandre{background:#DBEAFE;color:#1E40AF;}
+  .who-renata{background:#FCE7F3;color:#9D174D;}
+  .row .del{
+    background:none;
+    border:none;
+    color:#CBD5E1;
+    font-size:18px;
+    padding:2px 4px;
+    line-height:1;
+  }
+  .row .del:active{color:var(--vermelho);}
+  .add-btn{
+    margin-top:8px;
+    width:100%;
+    padding:10px;
+    border:1px dashed #93C5FD;
+    background:#EFF6FF;
+    color:var(--azul);
+    border-radius:10px;
+    font-size:13px;
+    font-weight:600;
+  }
+  .subtotal{
+    display:flex;
+    justify-content:space-between;
+    font-weight:700;
+    padding-top:10px;
+    font-size:14px;
+  }
+  .renda-box{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .renda-box input{
+    width:130px;border:1px solid var(--borda);border-radius:8px;padding:8px;text-align:right;font-size:14px;
+  }
+  .bar-wrap{margin-top:6px;}
+  .bar-label{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px;color:var(--texto-sec);}
+  .bar-bg{background:#EEF1F5;border-radius:8px;height:10px;overflow:hidden;}
+  .bar-fill{height:100%;border-radius:8px;transition:width .3s;}
+
+  /* Cartão table */
+  .nu-table{width:100%;border-collapse:collapse;font-size:12px;}
+  .nu-table th, .nu-table td{padding:6px 4px;text-align:center;border-bottom:1px solid var(--borda);}
+  .nu-table th{color:var(--texto-sec);font-weight:600;font-size:10.5px;}
+  .nu-table td.nome{text-align:left;font-size:12.5px;}
+  .nu-table input{width:56px;border:none;background:#F9FAFB;border-radius:6px;padding:4px;text-align:center;font-size:12px;}
+  .scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+
+  .status-chip{
+    font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:999px;display:inline-block;
+  }
+  .status-ok{background:#C6EFCE;color:#006100;}
+  .status-conferir{background:#FFC7CE;color:#9C0006;}
+  .status-aguardando{background:#F2F2F2;color:#808080;}
+
+  nav.tabs{
+    position:fixed;bottom:0;left:0;right:0;
+    background:#fff;
+    display:flex;
+    border-top:1px solid var(--borda);
+    padding-bottom:env(safe-area-inset-bottom);
+    z-index:20;
+    overflow-x:auto;
+  }
+  nav.tabs button{
+    flex:1;min-width:42px;
+    background:none;border:none;
+    padding:8px 1px 7px;
+    font-size:8.7px;
+    color:var(--texto-sec);
+    display:flex;flex-direction:column;align-items:center;gap:1px;
+    white-space:nowrap;
+  }
+  nav.tabs button .ic{font-size:15px;}
+  nav.tabs button.active{color:var(--azul);}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+  .note{font-size:11.5px;color:var(--texto-sec);margin-top:8px;line-height:1.4;}
+  .obs-input{
+    width:100%;border:none;background:#F9FAFB;border-radius:6px;padding:5px 7px;font-size:11.5px;color:var(--texto-sec);margin-top:2px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Controle Financeiro</h1>
+  <p id="subtitulo">Alexandre &amp; Renata</p>
+  <p id="syncStatus" style="margin:4px 0 0;font-size:11px;opacity:.85;">⚠️ Sincronização não configurada</p>
+</header>
+
+<main>
+
+  <!-- DASHBOARD -->
+  <section id="tab-dashboard" class="tab-panel active">
+    <div class="kpi-grid">
+      <div class="kpi total"><div class="lbl">Total geral / mês</div><div class="val" id="kpiTotal">R$ 0</div></div>
+      <div class="kpi fixas"><div class="lbl">Despesas fixas</div><div class="val" id="kpiFixas">R$ 0</div></div>
+      <div class="kpi nu"><div class="lbl">Cartão Nu</div><div class="val" id="kpiNu">R$ 0</div></div>
+      <div class="kpi inter"><div class="lbl">Cartão Inter</div><div class="val" id="kpiInter">R$ 0</div></div>
+      <div class="kpi pct"><div class="lbl">% da renda comprometido</div><div class="val" id="kpiPct">—</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Renda mensal</h2>
+      <div class="renda-box">
+        <span style="font-size:13px;color:var(--texto-sec)">Renda líquida mensal</span>
+        <input type="number" id="rendaInput" placeholder="0,00" inputmode="decimal">
+      </div>
+      <div class="bar-wrap">
+        <div class="bar-label"><span>Comprometido</span><span id="pctTexto">—</span></div>
+        <div class="bar-bg"><div class="bar-fill" id="pctBar" style="width:0%;background:var(--verde);"></div></div>
+      </div>
+      <div class="note">Verde até 25% · Amarelo 25–40% · Vermelho acima de 40%. Não substitui orientação de um profissional financeiro.</div>
+    </div>
+
+    <div class="card">
+      <h2>Divisão por responsável</h2>
+      <div id="divisaoResponsavel"></div>
+      <div class="note">Marque cada despesa como Casal, Alexandre ou Renata nas abas de itens para refinar essa divisão.</div>
+    </div>
+
+    <div class="card">
+      <h2>Distribuição por categoria</h2>
+      <div id="distribuicao"></div>
+    </div>
+
+    <div class="card">
+      <h2>Evolução Cartão Nu (parcelas por mês)</h2>
+      <div id="evolucaoNu"></div>
+    </div>
+  </section>
+
+  <!-- FIXAS -->
+  <section id="tab-fixas" class="tab-panel">
+    <div class="card">
+      <h2>Despesas Fixas — Casa</h2>
+      <div id="listaFixas"></div>
+      <button class="add-btn" onclick="addItem('fixas')">+ Adicionar item</button>
+      <div class="subtotal"><span>Subtotal</span><span id="subtotalFixas">R$ 0</span></div>
+    </div>
+  </section>
+
+  <!-- HELENA -->
+  <section id="tab-helena" class="tab-panel">
+    <div class="card">
+      <h2>Despesas — Helena</h2>
+      <div id="listaHelena"></div>
+      <button class="add-btn" onclick="addItem('helena')">+ Adicionar item</button>
+      <div class="subtotal"><span>Subtotal</span><span id="subtotalHelena">R$ 0</span></div>
+    </div>
+  </section>
+
+  <!-- VARIAVEIS -->
+  <section id="tab-variaveis" class="tab-panel">
+    <div class="card">
+      <h2>Despesas Variáveis — Casa</h2>
+      <div id="listaVariaveis"></div>
+      <button class="add-btn" onclick="addItem('variaveis')">+ Adicionar item</button>
+      <div class="subtotal"><span>Subtotal</span><span id="subtotalVariaveis">R$ 0</span></div>
+    </div>
+  </section>
+
+  <!-- CARTAO NU -->
+  <section id="tab-nu" class="tab-panel">
+    <div class="card">
+      <h2>Cartão Nu — Parcelas por mês</h2>
+      <div class="scroll-x">
+        <table class="nu-table" id="tabelaNu">
+          <thead>
+            <tr>
+              <th style="text-align:left;min-width:110px;">Item</th>
+              <th>Set</th><th>Out</th><th>Nov</th><th>Dez</th><th>Jan</th><th>Fev</th><th>Quem</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="corpoNu"></tbody>
+        </table>
+      </div>
+      <button class="add-btn" onclick="addNuItem()">+ Adicionar parcela</button>
+      <div class="subtotal"><span>Total do mês (Set)</span><span id="subtotalNu">R$ 0</span></div>
+      <div class="note">Deixe em branco os meses em que a parcela já terminou.</div>
+    </div>
+  </section>
+
+  <!-- CARTAO INTER -->
+  <section id="tab-inter" class="tab-panel">
+    <div class="card">
+      <h2>Cartão Inter</h2>
+      <div id="listaInter"></div>
+      <button class="add-btn" onclick="addItem('inter')">+ Adicionar item</button>
+      <div class="subtotal"><span>Total</span><span id="subtotalInter">R$ 0</span></div>
+    </div>
+  </section>
+
+  <!-- CONFERENCIA -->
+  <section id="tab-conf" class="tab-panel">
+    <div class="card">
+      <h2>Fatura vs Planilha</h2>
+      <div class="note" style="margin-top:0;margin-bottom:8px;">Ao fechar a fatura, preencha o valor real de cada item para conferir.</div>
+      <div id="listaConf"></div>
+    </div>
+  </section>
+
+  <!-- SINCRONIZAÇÃO -->
+  <section id="tab-sync" class="tab-panel">
+    <div class="card">
+      <h2>Status</h2>
+      <div id="syncStatusDetalhe" style="font-size:13px;color:var(--texto-sec);">Sincronização não configurada neste aparelho.</div>
+    </div>
+
+    <div class="card">
+      <h2>Passo 1 — só em um dos celulares, uma vez</h2>
+      <div class="note" style="margin-top:0;">Cole aqui a configuração do Firebase (o bloco que começa com "const firebaseConfig = {{ ... }}").</div>
+      <textarea id="fbConfigInput" rows="6" style="width:100%;margin-top:8px;border:1px solid var(--borda);border-radius:8px;padding:8px;font-size:12px;font-family:monospace;" placeholder='apiKey: "...", authDomain: "...", databaseURL: "...", projectId: "...", ...'></textarea>
+      <div class="renda-box" style="margin-top:10px;">
+        <span style="font-size:13px;color:var(--texto-sec)">Código da família</span>
+        <input type="text" id="familyIdInput" placeholder="ex: alexandreerenata" style="width:160px;border:1px solid var(--borda);border-radius:8px;padding:8px;font-size:13px;">
+      </div>
+      <button class="add-btn" onclick="gerarCodigo()">Gerar código de sincronização</button>
+      <div id="codigoGeradoWrap" style="display:none;margin-top:10px;">
+        <div class="note" style="margin-top:0;">Copie este código e envie por WhatsApp para o outro celular (e cole também aqui embaixo, no Passo 2, neste mesmo aparelho):</div>
+        <textarea id="codigoGerado" rows="3" readonly style="width:100%;border:1px solid var(--borda);border-radius:8px;padding:8px;font-size:11px;font-family:monospace;background:#F9FAFB;"></textarea>
+        <button class="add-btn" onclick="copiarCodigo()">Copiar código</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Passo 2 — nos dois celulares</h2>
+      <div class="note" style="margin-top:0;">Cole aqui o código de sincronização recebido (ou gerado acima) e toque em Conectar.</div>
+      <textarea id="codigoColado" rows="3" style="width:100%;margin-top:8px;border:1px solid var(--borda);border-radius:8px;padding:8px;font-size:11px;font-family:monospace;" placeholder="Cole o código aqui"></textarea>
+      <button class="add-btn" onclick="conectarComCodigo()">Conectar</button>
+    </div>
+
+    <div class="card">
+      <h2>Desconectar</h2>
+      <div class="note" style="margin-top:0;">Remove a sincronização deste aparelho. Os dados continuam salvos localmente.</div>
+      <button class="add-btn" style="border-color:#FCA5A5;background:#FEF2F2;color:var(--vermelho);" onclick="desconectarSync()">Desconectar sincronização</button>
+    </div>
+  </section>
+
+</main>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="dashboard"><span class="ic">📊</span>Painel</button>
+  <button class="tab-btn" data-tab="fixas"><span class="ic">🏠</span>Fixas</button>
+  <button class="tab-btn" data-tab="helena"><span class="ic">👧</span>Helena</button>
+  <button class="tab-btn" data-tab="variaveis"><span class="ic">🛒</span>Var.</button>
+  <button class="tab-btn" data-tab="nu"><span class="ic">💜</span>Nu</button>
+  <button class="tab-btn" data-tab="inter"><span class="ic">🧡</span>Inter</button>
+  <button class="tab-btn" data-tab="conf"><span class="ic">✅</span>Conferir</button>
+  <button class="tab-btn" data-tab="sync"><span class="ic">🔄</span>Sincron.</button>
+</nav>
+
+<script>
+const STORAGE_KEY = 'controleFinanceiro.v1';
+
+const DEFAULT_DATA = {
+  renda: 0,
+  fixas: [
+    {nome:'Apartamento (parcela)', valor:998.92, quem:'Casal'},
+    {nome:'Condomínio', valor:542.57, quem:'Casal'},
+    {nome:'Energia', valor:550.00, quem:'Casal'},
+    {nome:'Carro (parcela)', valor:757.00, quem:'Casal'},
+    {nome:'Consórcio Apartamento', valor:881.44, quem:'Casal'},
+    {nome:'Seguro', valor:183.21, quem:'Casal'},
+  ],
+  helena: [
+    {nome:'Colégio', valor:692.55, quem:'Casal'},
+    {nome:'Item a confirmar ("Iene/Jene")', valor:2120.00, quem:'Casal'},
+    {nome:'Uber', valor:200.00, quem:'Casal'},
+  ],
+  variaveis: [
+    {nome:'Supermercado', valor:1200.00, quem:'Casal'},
+    {nome:'Gasolina', valor:500.00, quem:'Casal'},
+    {nome:'Água', valor:100.00, quem:'Casal'},
+  ],
+  nu: [
+    {nome:'Renner - João', meses:[89.95,89.95,null,null,null,null], quem:'Casal'},
+    {nome:'CCA Ana', meses:[60.01,60.01,60.01,null,null,null], quem:'Casal'},
+    {nome:'Democrata', meses:[107.44,107.44,107.44,107.44,null,null], quem:'Casal'},
+    {nome:'Dia das Mães', meses:[73.72,null,null,null,null,null], quem:'Casal'},
+    {nome:'Ígomes', meses:[96.60,96.60,null,null,null,null], quem:'Casal'},
+    {nome:'Relógio', meses:[89.80,85.00,85.00,85.00,85.00,85.00], quem:'Casal'},
+    {nome:'Mgs Comércio', meses:[64.50,null,null,null,null,null], quem:'Casal'},
+    {nome:'Hotel Fortaleza', meses:[216.16,216.16,null,null,null,null], quem:'Casal'},
+    {nome:'Malas', meses:[87.60,87.60,null,null,null,null], quem:'Casal'},
+    {nome:'Sapato Renata', meses:[105.00,105.00,null,null,null,null], quem:'Renata'},
+    {nome:'Óculos', meses:[166.00,166.00,166.00,null,null,null], quem:'Casal'},
+    {nome:'Renner', meses:[90.00,90.00,null,null,null,null], quem:'Casal'},
+    {nome:'Cama', meses:[144.83,144.83,null,null,null,null], quem:'Casal'},
+    {nome:'Vest. Helena', meses:[89.80,null,null,null,null,null], quem:'Casal'},
+    {nome:'Zara', meses:[106.70,106.70,null,null,null,null], quem:'Casal'},
+    {nome:'Bolsa Fortaleza', meses:[72.50,72.50,null,null,null,null], quem:'Casal'},
+    {nome:'Hotel SAC', meses:[61.13,61.13,61.13,null,null,null], quem:'Casal'},
+    {nome:'Cortinas (valor incerto)', meses:[413.48,null,null,null,null,null], quem:'Casal'},
+    {nome:'Fronhas', meses:[78.18,null,null,null,null,null], quem:'Casal'},
+  ],
+  inter: [
+    {nome:'Inter (Lipo)', valor:555.00, obs:'Pagamento único', quem:'Casal'},
+    {nome:'Curso Intuitivo', valor:283.00, obs:'Pagamento único', quem:'Casal'},
+    {nome:'Item a confirmar ("Chamiller"?)', valor:150.00, obs:'Nome pouco legível', quem:'Casal'},
+    {nome:'Relógio 2 (parcelado)', valor:173.58, obs:'Faltam 8 parcelas', quem:'Casal'},
+    {nome:'Item a confirmar ("Argentina"?)', valor:998.84, obs:'Nome pouco legível', quem:'Casal'},
+    {nome:'Itaú', valor:106.85, obs:'4 parcelas', quem:'Casal'},
+    {nome:'Item a confirmar ("Vermelho"?)', valor:147.15, obs:'Nome pouco legível', quem:'Casal'},
+  ],
+  conferencia: {} // { "categoria|indice": valorFatura }
+};
+
+const RESPONSAVEIS = ['Casal', 'Alexandre', 'Renata'];
+
+function loadData(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return JSON.parse(JSON.stringify(DEFAULT_DATA));
+    const parsed = JSON.parse(raw);
+    return Object.assign(JSON.parse(JSON.stringify(DEFAULT_DATA)), parsed);
+  }catch(e){
+    return JSON.parse(JSON.stringify(DEFAULT_DATA));
+  }
+}
+function saveData(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if(!applyingRemote) pushStateToRemote();
+}
+
+let state = loadData();
+
+function fmt(v){
+  v = Number(v)||0;
+  return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+}
+
+// ---------- generic simple lists (fixas/helena/variaveis/inter) ----------
+const listConfig = {
+  fixas:   {containerId:'listaFixas',   subtotalId:'subtotalFixas'},
+  helena:  {containerId:'listaHelena',  subtotalId:'subtotalHelena'},
+  variaveis:{containerId:'listaVariaveis',subtotalId:'subtotalVariaveis'},
+  inter:   {containerId:'listaInter',   subtotalId:'subtotalInter', hasObs:true},
+};
+
+function selectOptionsHtml(selected){
+  return RESPONSAVEIS.map(r => `<option value="${r}" ${r===selected?'selected':''}>${r}</option>`).join('');
+}
+
+function renderList(key){
+  const cfg = listConfig[key];
+  const container = document.getElementById(cfg.containerId);
+  container.innerHTML = '';
+  state[key].forEach((item, idx) => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.style.flexWrap = 'wrap';
+    row.innerHTML = `
+      <input type="text" value="${escapeHtml(item.nome)}" data-key="${key}" data-idx="${idx}" data-field="nome">
+      <input type="number" value="${item.valor}" step="0.01" inputmode="decimal" data-key="${key}" data-idx="${idx}" data-field="valor">
+      <select data-key="${key}" data-idx="${idx}" data-field="quem">${selectOptionsHtml(item.quem||'Casal')}</select>
+      <button class="del" data-key="${key}" data-idx="${idx}">✕</button>
+      ${cfg.hasObs ? `<input type="text" class="obs-input" placeholder="Observação" value="${escapeHtml(item.obs||'')}" style="flex-basis:100%;" data-key="${key}" data-idx="${idx}" data-field="obs">` : ''}
+    `;
+    container.appendChild(row);
+  });
+  container.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('input', onListInputChange);
+    inp.addEventListener('change', onListInputCommit);
+  });
+  container.querySelectorAll('select').forEach(sel => {
+    sel.addEventListener('change', onListInputChange);
+  });
+  container.querySelectorAll('.del').forEach(btn => {
+    btn.addEventListener('click', onListDelete);
+  });
+  updateSubtotal(key);
+}
+
+function onListInputChange(e){
+  const {key, idx, field} = e.target.dataset;
+  const item = state[key][idx];
+  if(field === 'valor'){
+    item.valor = parseFloat(e.target.value) || 0;
+  } else {
+    item[field] = e.target.value;
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  updateSubtotal(key);
+  renderDashboardDebounced();
+  renderConferenciaDebounced();
+  scheduleRemotePush();
+}
+
+function onListInputCommit(){
+  saveData();
+  renderDashboard();
+  renderConferencia();
+}
+
+function onListDelete(e){
+  const {key, idx} = e.target.dataset;
+  state[key].splice(idx, 1);
+  saveData();
+  renderList(key);
+  renderDashboard();
+  renderConferencia();
+}
+
+function addItem(key){
+  const defaults = {
+    fixas:{nome:'Novo item', valor:0, quem:'Casal'},
+    helena:{nome:'Novo item', valor:0, quem:'Casal'},
+    variaveis:{nome:'Novo item', valor:0, quem:'Casal'},
+    inter:{nome:'Novo item', valor:0, obs:'', quem:'Casal'}
+  };
+  state[key].push(Object.assign({}, defaults[key]));
+  saveData();
+  renderList(key);
+  renderDashboard();
+  renderConferencia();
+}
+
+function updateSubtotal(key){
+  const cfg = listConfig[key];
+  const total = state[key].reduce((s,i)=>s+(Number(i.valor)||0), 0);
+  document.getElementById(cfg.subtotalId).textContent = fmt(total);
+  return total;
+}
+
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ---------- Cartão Nu table ----------
+const MESES = ['Set','Out','Nov','Dez','Jan','Fev'];
+
+function renderNu(){
+  const tbody = document.getElementById('corpoNu');
+  tbody.innerHTML = '';
+  state.nu.forEach((item, idx) => {
+    const tr = document.createElement('tr');
+    let cells = `<td class="nome"><input type="text" style="width:100%;background:transparent;border:none;font-size:12.5px;padding:0;" value="${escapeHtml(item.nome)}" data-idx="${idx}" data-field="nome"></td>`;
+    for(let m=0;m<6;m++){
+      const v = item.meses[m];
+      cells += `<td><input type="number" step="0.01" inputmode="decimal" value="${v===null||v===undefined?'':v}" data-idx="${idx}" data-mes="${m}"></td>`;
+    }
+    cells += `<td><select style="font-size:10.5px;padding:3px 2px;border:none;background:#F9FAFB;border-radius:6px;" data-idx="${idx}" data-field="quem">${selectOptionsHtml(item.quem||'Casal')}</select></td>`;
+    cells += `<td><button class="del" data-idx="${idx}">✕</button></td>`;
+    tr.innerHTML = cells;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('input[data-field="nome"]').forEach(inp=>{
+    inp.addEventListener('input', e=>{
+      state.nu[e.target.dataset.idx].nome = e.target.value;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      renderConferenciaDebounced();
+      scheduleRemotePush();
+    });
+    inp.addEventListener('change', ()=>{ saveData(); renderConferencia(); });
+  });
+  tbody.querySelectorAll('input[data-mes]').forEach(inp=>{
+    inp.addEventListener('input', e=>{
+      const idx = e.target.dataset.idx, m = e.target.dataset.mes;
+      const val = e.target.value;
+      state.nu[idx].meses[m] = val === '' ? null : parseFloat(val);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      updateNuSubtotal();
+      renderDashboardDebounced();
+      renderConferenciaDebounced();
+      scheduleRemotePush();
+    });
+    inp.addEventListener('change', ()=>{
+      saveData();
+      updateNuSubtotal();
+      renderDashboard();
+      renderConferencia();
+    });
+  });
+  tbody.querySelectorAll('select[data-field="quem"]').forEach(sel=>{
+    sel.addEventListener('change', e=>{
+      state.nu[e.target.dataset.idx].quem = e.target.value;
+      saveData();
+      renderDashboard();
+    });
+  });
+  tbody.querySelectorAll('.del').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      state.nu.splice(e.target.dataset.idx, 1);
+      saveData();
+      renderNu();
+      renderDashboard();
+      renderConferencia();
+    });
+  });
+  updateNuSubtotal();
+}
+
+function addNuItem(){
+  state.nu.push({nome:'Novo item', meses:[0,null,null,null,null,null], quem:'Casal'});
+  saveData();
+  renderNu();
+  renderDashboard();
+}
+
+function nuMonthTotal(m){
+  return state.nu.reduce((s,i)=> s + (Number(i.meses[m])||0), 0);
+}
+
+function updateNuSubtotal(){
+  document.getElementById('subtotalNu').textContent = fmt(nuMonthTotal(0));
+}
+
+// ---------- Dashboard ----------
+function renderDashboard(){
+  const totalFixas = state.fixas.reduce((s,i)=>s+(Number(i.valor)||0),0);
+  const totalHelena = state.helena.reduce((s,i)=>s+(Number(i.valor)||0),0);
+  const totalVariaveis = state.variaveis.reduce((s,i)=>s+(Number(i.valor)||0),0);
+  const totalNu = nuMonthTotal(0);
+  const totalInter = state.inter.reduce((s,i)=>s+(Number(i.valor)||0),0);
+  const totalGeral = totalFixas+totalHelena+totalVariaveis+totalNu+totalInter;
+
+  document.getElementById('kpiTotal').textContent = fmt(totalGeral);
+  document.getElementById('kpiFixas').textContent = fmt(totalFixas);
+  document.getElementById('kpiNu').textContent = fmt(totalNu);
+  document.getElementById('kpiInter').textContent = fmt(totalInter);
+
+  const renda = Number(state.renda)||0;
+  let pctEl = document.getElementById('kpiPct');
+  let pctBar = document.getElementById('pctBar');
+  let pctTexto = document.getElementById('pctTexto');
+  if(renda > 0){
+    const pct = totalGeral/renda;
+    const pctStr = (pct*100).toFixed(1)+'%';
+    pctEl.textContent = pctStr;
+    pctTexto.textContent = pctStr;
+    let cor = '#059669';
+    if(pct > 0.4) cor = '#DC2626';
+    else if(pct > 0.25) cor = '#D97706';
+    pctBar.style.width = Math.min(pct*100,100)+'%';
+    pctBar.style.background = cor;
+  } else {
+    pctEl.textContent = '—';
+    pctTexto.textContent = 'preencha a renda';
+    pctBar.style.width = '0%';
+  }
+
+  // divisão por responsável
+  const porResponsavel = {Casal:0, Alexandre:0, Renata:0};
+  const somaPorQuem = (lista, campoValor) => {
+    lista.forEach(it => {
+      const quem = RESPONSAVEIS.includes(it.quem) ? it.quem : 'Casal';
+      porResponsavel[quem] += Number(campoValor(it)) || 0;
+    });
+  };
+  somaPorQuem(state.fixas, i=>i.valor);
+  somaPorQuem(state.helena, i=>i.valor);
+  somaPorQuem(state.variaveis, i=>i.valor);
+  somaPorQuem(state.inter, i=>i.valor);
+  somaPorQuem(state.nu, i=>i.meses[0]);
+
+  const coresResp = {Casal:'#7C3AED', Alexandre:'#2563EB', Renata:'#DB2777'};
+  const maxResp = Math.max(...Object.values(porResponsavel), 1);
+  const divDiv = document.getElementById('divisaoResponsavel');
+  divDiv.innerHTML = RESPONSAVEIS.map(r => `
+    <div class="bar-wrap">
+      <div class="bar-label"><span>${r}</span><span>${fmt(porResponsavel[r])}</span></div>
+      <div class="bar-bg"><div class="bar-fill" style="width:${(porResponsavel[r]/maxResp*100).toFixed(1)}%;background:${coresResp[r]};"></div></div>
+    </div>
+  `).join('');
+
+  // distribuição
+  const cats = [
+    {nome:'Fixas', valor:totalFixas, cor:'#059669'},
+    {nome:'Helena', valor:totalHelena, cor:'#2563EB'},
+    {nome:'Variáveis', valor:totalVariaveis, cor:'#0EA5E9'},
+    {nome:'Cartão Nu', valor:totalNu, cor:'#D97706'},
+    {nome:'Cartão Inter', valor:totalInter, cor:'#DC2626'},
+  ];
+  const maxCat = Math.max(...cats.map(c=>c.valor), 1);
+  const distDiv = document.getElementById('distribuicao');
+  distDiv.innerHTML = cats.map(c => `
+    <div class="bar-wrap">
+      <div class="bar-label"><span>${c.nome}</span><span>${fmt(c.valor)}</span></div>
+      <div class="bar-bg"><div class="bar-fill" style="width:${(c.valor/maxCat*100).toFixed(1)}%;background:${c.cor};"></div></div>
+    </div>
+  `).join('');
+
+  // evolução cartão Nu
+  const nuVals = MESES.map((_,m)=>nuMonthTotal(m));
+  const maxNu = Math.max(...nuVals, 1);
+  const evoDiv = document.getElementById('evolucaoNu');
+  evoDiv.innerHTML = MESES.map((m,i) => `
+    <div class="bar-wrap">
+      <div class="bar-label"><span>${m}</span><span>${fmt(nuVals[i])}</span></div>
+      <div class="bar-bg"><div class="bar-fill" style="width:${(nuVals[i]/maxNu*100).toFixed(1)}%;background:#D97706;"></div></div>
+    </div>
+  `).join('');
+}
+
+document.getElementById('rendaInput').addEventListener('input', e=>{
+  state.renda = parseFloat(e.target.value) || 0;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  renderDashboardDebounced();
+  scheduleRemotePush();
+});
+document.getElementById('rendaInput').addEventListener('change', ()=>{
+  saveData();
+  renderDashboard();
+});
+
+// ---------- Conferência Fatura vs Planilha ----------
+function renderConferencia(){
+  const container = document.getElementById('listaConf');
+  container.innerHTML = '';
+  const items = [];
+  state.nu.forEach((it, idx) => items.push({cartao:'Cartão Nu', nome:it.nome, planilha: Number(it.meses[0])||0, key:`nu|${idx}`}));
+  state.inter.forEach((it, idx) => items.push({cartao:'Cartão Inter', nome:it.nome, planilha: Number(it.valor)||0, key:`inter|${idx}`}));
+
+  items.forEach(it => {
+    const faturaVal = state.conferencia[it.key];
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.style.flexWrap = 'wrap';
+    let status = 'aguardando', statusLabel = 'Aguardando';
+    if(faturaVal !== undefined && faturaVal !== null && faturaVal !== ''){
+      if(Math.abs(Number(faturaVal) - it.planilha) < 0.01){ status='ok'; statusLabel='OK'; }
+      else { status='conferir'; statusLabel='Conferir'; }
+    }
+    row.innerHTML = `
+      <div style="flex:1;">
+        <div style="font-size:13px;">${escapeHtml(it.nome)}</div>
+        <div style="font-size:11px;color:var(--texto-sec);">${it.cartao} · planilha: ${fmt(it.planilha)}</div>
+      </div>
+      <input type="number" step="0.01" inputmode="decimal" placeholder="fatura" style="width:84px;border:1px solid var(--borda);border-radius:8px;padding:6px;text-align:right;font-size:12.5px;" value="${faturaVal ?? ''}" data-key="${it.key}">
+      <span class="status-chip status-${status}">${statusLabel}</span>
+    `;
+    container.appendChild(row);
+  });
+
+  container.querySelectorAll('input[data-key]').forEach(inp=>{
+    inp.addEventListener('input', e=>{
+      const val = e.target.value;
+      state.conferencia[e.target.dataset.key] = val === '' ? null : parseFloat(val);
+      saveData();
+      renderConferencia();
+    });
+  });
+}
+
+// ---------- Debounce helpers (evita recriar o painel a cada tecla) ----------
+function debounce(fn, delay){
+  let t;
+  return function(...args){
+    clearTimeout(t);
+    t = setTimeout(()=>fn.apply(this,args), delay);
+  };
+}
+const renderDashboardDebounced = debounce(renderDashboard, 300);
+const renderConferenciaDebounced = debounce(renderConferencia, 300);
+const scheduleRemotePush = debounce(()=>{ if(dbRef && !applyingRemote) dbRef.set(state); }, 600);
+
+// ---------- Tabs ----------
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ---------- Trava a tela parada enquanto o teclado está aberto ----------
+let scrollLockY = 0;
+function lockScroll(){
+  scrollLockY = window.scrollY;
+  document.body.style.position = 'fixed';
+  document.body.style.top = (-scrollLockY) + 'px';
+  document.body.style.left = '0';
+  document.body.style.right = '0';
+}
+function unlockScroll(){
+  document.body.style.position = '';
+  document.body.style.top = '';
+  document.body.style.left = '';
+  document.body.style.right = '';
+  window.scrollTo(0, scrollLockY);
+}
+document.addEventListener('focusin', e=>{
+  if(e.target.matches('input, select, textarea')){
+    setTimeout(lockScroll, 60); // deixa o Safari terminar o auto-scroll dele antes de travar
+  }
+});
+document.addEventListener('focusout', e=>{
+  if(e.target.matches('input, select, textarea')){
+    unlockScroll();
+  }
+});
+
+// ---------- Init ----------
+function renderAll(){
+  document.getElementById('rendaInput').value = state.renda || '';
+  renderList('fixas');
+  renderList('helena');
+  renderList('variaveis');
+  renderList('inter');
+  renderNu();
+  renderDashboard();
+  renderConferencia();
+}
+
+function initAll(){
+  renderAll();
+  connectSync();
+}
+initAll();
+
+// ---------- Service worker ----------
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+
+// ---------- Sincronização (Firebase Realtime Database) ----------
+const SYNC_CONFIG_KEY = 'cfSyncConfig';
+let applyingRemote = false;
+let firebaseApp = null;
+let dbRef = null;
+
+function getSyncConfig(){
+  try { return JSON.parse(localStorage.getItem(SYNC_CONFIG_KEY) || 'null'); }
+  catch(e){ return null; }
+}
+function saveSyncConfig(cfg){
+  localStorage.setItem(SYNC_CONFIG_KEY, JSON.stringify(cfg));
+}
+
+function setSyncStatus(texto, curto){
+  const el1 = document.getElementById('syncStatus');
+  const el2 = document.getElementById('syncStatusDetalhe');
+  if(el1) el1.textContent = curto;
+  if(el2) el2.textContent = texto;
+}
+
+function connectSync(){
+  const cfg = getSyncConfig();
+  if(!cfg || !cfg.config || !cfg.familyId){
+    setSyncStatus('Sincronização não configurada neste aparelho.', '⚠️ Sincronização não configurada');
+    return;
+  }
+  if(typeof firebase === 'undefined'){
+    setSyncStatus('Sem conexão com o serviço de sincronização agora. Os dados continuam salvos localmente.', '📴 Sincronização indisponível (offline?)');
+    return;
+  }
+  try{
+    if(!firebaseApp){
+      firebaseApp = firebase.initializeApp(cfg.config);
+    }
+    dbRef = firebase.database().ref('controleFinanceiro/' + cfg.familyId);
+    setSyncStatus('Conectando...', '🔄 Conectando...');
+    dbRef.on('value', (snap) => {
+      const remote = snap.val();
+      if(remote){
+        applyRemoteState(remote);
+      } else {
+        pushStateToRemote();
+      }
+      setSyncStatus('Conectado — código da família: ' + cfg.familyId, '✅ Sincronizado');
+    }, (err) => {
+      setSyncStatus('Erro ao sincronizar: ' + err.message, '⚠️ Erro de sincronização');
+    });
+  }catch(e){
+    setSyncStatus('Erro ao conectar: ' + e.message, '⚠️ Erro de sincronização');
+  }
+}
+
+function applyRemoteState(remote){
+  applyingRemote = true;
+  state = Object.assign(JSON.parse(JSON.stringify(DEFAULT_DATA)), remote);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  renderAll();
+  applyingRemote = false;
+}
+
+function pushStateToRemote(){
+  if(dbRef && !applyingRemote){
+    dbRef.set(state);
+  }
+}
+
+function parseFirebaseConfigText(text){
+  const obj = {};
+  const regex = /(\w+)\s*:\s*"([^"]*)"/g;
+  let match;
+  while((match = regex.exec(text))){
+    obj[match[1]] = match[2];
+  }
+  return obj;
+}
+
+function randomId(){
+  return Math.random().toString(36).slice(2, 10);
+}
+
+function gerarCodigo(){
+  const raw = document.getElementById('fbConfigInput').value;
+  let familyId = document.getElementById('familyIdInput').value.trim();
+  if(!familyId){
+    familyId = randomId();
+    document.getElementById('familyIdInput').value = familyId;
+  }
+  const cfg = parseFirebaseConfigText(raw);
+  if(!cfg.apiKey || !cfg.databaseURL){
+    alert('Não consegui reconhecer a configuração. Confira se colou o bloco inteiro copiado do Firebase (com apiKey e databaseURL).');
+    return;
+  }
+  const payload = {config: cfg, familyId: familyId};
+  const code = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+  document.getElementById('codigoGerado').value = code;
+  document.getElementById('codigoGeradoWrap').style.display = 'block';
+  // já salva e conecta neste mesmo aparelho também
+  saveSyncConfig(payload);
+  connectSync();
+}
+
+function copiarCodigo(){
+  const el = document.getElementById('codigoGerado');
+  el.select();
+  el.setSelectionRange(0, 99999);
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(el.value).catch(()=>{document.execCommand('copy');});
+  } else {
+    document.execCommand('copy');
+  }
+}
+
+function conectarComCodigo(){
+  const code = document.getElementById('codigoColado').value.trim();
+  if(!code){ alert('Cole o código de sincronização primeiro.'); return; }
+  try{
+    const parsed = JSON.parse(decodeURIComponent(escape(atob(code))));
+    if(!parsed.config || !parsed.familyId) throw new Error('formato inválido');
+    saveSyncConfig(parsed);
+    connectSync();
+  }catch(e){
+    alert('Código inválido. Confira se copiou certinho, sem espaços a mais.');
+  }
+}
+
+function desconectarSync(){
+  if(dbRef) dbRef.off();
+  dbRef = null;
+  localStorage.removeItem(SYNC_CONFIG_KEY);
+  setSyncStatus('Sincronização não configurada neste aparelho.', '⚠️ Sincronização não configurada');
+}
+
+</script>
+</body>
+</html>
