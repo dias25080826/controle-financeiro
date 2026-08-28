@@ -12,6 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="Controle Fin.">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <style>
   :root{
     --azul-escuro:#1F4E78;
@@ -190,15 +191,15 @@
     overflow-x:auto;
   }
   nav.tabs button{
-    flex:1;min-width:42px;
+    flex:1;min-width:38px;
     background:none;border:none;
-    padding:8px 1px 7px;
-    font-size:8.7px;
+    padding:7px 1px 6px;
+    font-size:8px;
     color:var(--texto-sec);
     display:flex;flex-direction:column;align-items:center;gap:1px;
     white-space:nowrap;
   }
-  nav.tabs button .ic{font-size:15px;}
+  nav.tabs button .ic{font-size:14px;}
   nav.tabs button.active{color:var(--azul);}
   .tab-panel{display:none;}
   .tab-panel.active{display:block;}
@@ -252,6 +253,28 @@
           <option value="Renata">Renata</option>
         </select>
       </div>
+      <div class="row" style="flex-wrap:wrap;gap:8px;border-bottom:none;padding-top:6px;">
+        <input type="date" id="novoGastoData" style="flex:1 1 48%;border:1px solid var(--borda);border-radius:8px;padding:8px;font-size:13px;background:#fff;">
+        <select id="novoGastoForma" style="flex:1 1 48%;border:1px solid var(--borda);border-radius:8px;padding:8px;font-size:13px;background:#fff;">
+          <option value="Dinheiro">Dinheiro</option>
+          <option value="Débito">Débito</option>
+          <option value="Crédito">Crédito</option>
+          <option value="Pix">Pix</option>
+        </select>
+      </div>
+      <div class="row" style="flex-wrap:wrap;gap:8px;border-bottom:none;padding-top:6px;">
+        <select id="novoGastoTipo" style="flex:1;border:1px solid var(--borda);border-radius:8px;padding:8px;font-size:13px;background:#fff;">
+          <option value="Alimentação">🍽️ Alimentação</option>
+          <option value="Mercado">🛒 Mercado</option>
+          <option value="Transporte">🚗 Transporte</option>
+          <option value="Saúde">💊 Saúde</option>
+          <option value="Lazer">🎉 Lazer</option>
+          <option value="Compras">🛍️ Compras</option>
+          <option value="Casa">🏠 Casa</option>
+          <option value="Educação">📚 Educação</option>
+          <option value="Outros">📦 Outros</option>
+        </select>
+      </div>
       <button class="add-btn" onclick="adicionarGastoRapido()">Adicionar gasto</button>
       <div class="note" id="novoGastoFeedback" style="min-height:14px;"></div>
     </div>
@@ -291,6 +314,36 @@
     <div class="card">
       <h2>Evolução Cartão Nu (parcelas por mês)</h2>
       <div id="evolucaoNu"></div>
+    </div>
+  </section>
+
+  <!-- DIÁRIO -->
+  <section id="tab-diario" class="tab-panel">
+    <div class="card">
+      <h2>Despesas mais recorrentes</h2>
+      <div style="position:relative;">
+        <canvas id="resumoRecorrentesChart"></canvas>
+      </div>
+      <div class="note" id="resumoRecorrentesVazio" style="display:none;">Ainda não há gastos repetidos (mesma descrição) suficientes para mostrar um padrão.</div>
+      <div class="note" style="margin-top:6px;">Considera todos os gastos lançados até hoje, agrupados pela descrição (ex: todas as vezes que você lançou "Uber").</div>
+    </div>
+    <div class="card">
+      <h2>Resumo do mês por tipo de gasto</h2>
+      <div id="resumoTipoGasto"></div>
+      <div class="note" id="resumoTipoVazio" style="display:none;">Nenhum gasto do mês com tipo definido ainda.</div>
+    </div>
+    <div class="card">
+      <h2>Resumo do mês por forma de pagamento</h2>
+      <div id="resumoFormaPagamento"></div>
+    </div>
+    <div class="card">
+      <h2>Gastos lançados</h2>
+      <div class="renda-box" style="margin-bottom:8px;">
+        <span style="font-size:13px;color:var(--texto-sec)">Mês de referência</span>
+        <select id="diarioMesFiltro" onchange="renderDiario()" style="border:1px solid var(--borda);border-radius:8px;padding:8px;background:#fff;"></select>
+      </div>
+      <div id="listaDiario"></div>
+      <div class="note" id="diarioVazio" style="display:none;">Nenhum gasto lançado nesse mês. Use o card "➕ Novo gasto" no Painel.</div>
     </div>
   </section>
 
@@ -407,6 +460,7 @@
 
 <nav class="tabs">
   <button class="tab-btn active" data-tab="dashboard"><span class="ic">📊</span>Painel</button>
+  <button class="tab-btn" data-tab="diario"><span class="ic">📅</span>Diário</button>
   <button class="tab-btn" data-tab="fixas"><span class="ic">🏠</span>Fixas</button>
   <button class="tab-btn" data-tab="helena"><span class="ic">👧</span>Helena</button>
   <button class="tab-btn" data-tab="variaveis"><span class="ic">🛒</span>Var.</button>
@@ -490,6 +544,8 @@ function saveData(){
 }
 
 let state = loadData();
+let recorrentesChart = null;
+let diarioEditando = null; // formato "categoria|indice" do item sendo editado no Diário
 
 function fmt(v){
   v = Number(v)||0;
@@ -557,6 +613,7 @@ function onListInputCommit(){
   saveData();
   renderDashboard();
   renderConferencia();
+  renderDiario();
 }
 
 function onListDelete(e){
@@ -566,6 +623,7 @@ function onListDelete(e){
   renderList(key);
   renderDashboard();
   renderConferencia();
+  renderDiario();
 }
 
 function addItem(key){
@@ -618,7 +676,7 @@ function renderNu(){
       renderConferenciaDebounced();
       scheduleRemotePush();
     });
-    inp.addEventListener('change', ()=>{ saveData(); renderConferencia(); });
+    inp.addEventListener('change', ()=>{ saveData(); renderConferencia(); renderDiario(); });
   });
   tbody.querySelectorAll('input[data-mes]').forEach(inp=>{
     inp.addEventListener('input', e=>{
@@ -636,6 +694,7 @@ function renderNu(){
       updateNuSubtotal();
       renderDashboard();
       renderConferencia();
+      renderDiario();
     });
   });
   tbody.querySelectorAll('select[data-field="quem"]').forEach(sel=>{
@@ -643,6 +702,7 @@ function renderNu(){
       state.nu[e.target.dataset.idx].quem = e.target.value;
       saveData();
       renderDashboard();
+      renderDiario();
     });
   });
   tbody.querySelectorAll('.del').forEach(btn=>{
@@ -652,6 +712,7 @@ function renderNu(){
       renderNu();
       renderDashboard();
       renderConferencia();
+      renderDiario();
     });
   });
   updateNuSubtotal();
@@ -895,6 +956,31 @@ function preencherPorVoz(){
   else if(/renata/.test(texto)){ quem = 'Renata'; texto = texto.replace(/renata/, ' '); }
   else if(/casal/.test(texto)){ quem = 'Casal'; texto = texto.replace(/casal/, ' '); }
 
+  // 3b) forma de pagamento por palavra-chave
+  let forma = null;
+  if(/dinheiro|esp[eé]cie/.test(texto)){ forma = 'Dinheiro'; texto = texto.replace(/dinheiro|esp[eé]cie/, ' '); }
+  else if(/d[eé]bito/.test(texto)){ forma = 'Débito'; texto = texto.replace(/d[eé]bito/, ' '); }
+  else if(/cr[eé]dito/.test(texto)){ forma = 'Crédito'; texto = texto.replace(/cr[eé]dito/, ' '); }
+  else if(/\bpix\b/.test(texto)){ forma = 'Pix'; texto = texto.replace(/\bpix\b/, ' '); }
+  if(forma) document.getElementById('novoGastoForma').value = forma;
+
+  // 3c) tipo de gasto por palavra-chave
+  const tipoKeywords = [
+    [/restaurante|lanche|almo[çc]o|janta|caf[eé]|ifood|padaria|pizza/, 'Alimentação'],
+    [/mercado|supermercado|feira|hortifruti/, 'Mercado'],
+    [/uber|gasolina|combust[ií]vel|[oô]nibus|estacionamento|ped[aá]gio|\b99\b|taxi/, 'Transporte'],
+    [/farm[aá]cia|rem[eé]dio|m[eé]dico|consulta|dentista|exame/, 'Saúde'],
+    [/cinema|\bbar\b|show|passeio|viagem|festa/, 'Lazer'],
+    [/loja|roupa|sapato|compra|shopping/, 'Compras'],
+    [/manuten[cç][aã]o|conserto|limpeza|faxina/, 'Casa'],
+    [/curso|escola|livro|faculdade|mensalidade/, 'Educação'],
+  ];
+  let tipo = null;
+  for(const [re, t] of tipoKeywords){
+    if(re.test(texto)){ tipo = t; texto = texto.replace(re, ' '); break; }
+  }
+  document.getElementById('novoGastoTipo').value = tipo || 'Outros';
+
   // 4) o que sobrar do texto vira a descrição
   let nome = texto.replace(/\s+/g, ' ').trim();
   if(nome) nome = nome.charAt(0).toUpperCase() + nome.slice(1);
@@ -919,12 +1005,18 @@ function adicionarGastoRapido(){
   const valorEl = document.getElementById('novoGastoValor');
   const catEl = document.getElementById('novoGastoCategoria');
   const quemEl = document.getElementById('novoGastoQuem');
+  const dataEl = document.getElementById('novoGastoData');
+  const formaEl = document.getElementById('novoGastoForma');
+  const tipoEl = document.getElementById('novoGastoTipo');
   const feedback = document.getElementById('novoGastoFeedback');
 
   const nome = nomeEl.value.trim();
   const valor = parseFloat(valorEl.value);
   const categoria = catEl.value;
   const quem = quemEl.value;
+  const data = dataEl.value || todayISO();
+  const forma = formaEl.value;
+  const tipo = tipoEl.value;
 
   if(!nome){
     feedback.textContent = 'Digite uma descrição para o gasto.';
@@ -940,31 +1032,311 @@ function adicionarGastoRapido(){
   }
 
   if(categoria === 'nu'){
-    state.nu.push({nome, meses:[valor,null,null,null,null,null], quem});
+    state.nu.push({nome, meses:[valor,null,null,null,null,null], quem, data, forma, tipo});
     renderNu();
   } else if(categoria === 'inter'){
-    state.inter.push({nome, valor, obs:'', quem});
+    state.inter.push({nome, valor, obs:'', quem, data, forma, tipo});
     renderList('inter');
   } else {
-    state[categoria].push({nome, valor, quem});
+    state[categoria].push({nome, valor, quem, data, forma, tipo});
     renderList(categoria);
   }
 
   saveData();
   renderDashboard();
   renderConferencia();
+  renderDiario();
 
   nomeEl.value = '';
   valorEl.value = '';
   quemEl.value = 'Casal';
+  dataEl.value = todayISO();
+  formaEl.value = 'Dinheiro';
   feedback.textContent = `"${nome}" adicionado em ${catEl.options[catEl.selectedIndex].text}.`;
   feedback.style.color = 'var(--verde)';
   setTimeout(()=>{ if(feedback.textContent.includes(nome)) feedback.textContent=''; }, 3500);
 }
 
+function todayISO(){
+  const d = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+
+// ---------- Diário: lista cronológica de gastos com data ----------
+function desenharGraficoRecorrentes(recorrentes){
+  const canvasEl = document.getElementById('resumoRecorrentesChart');
+  if(!canvasEl || typeof Chart === 'undefined') return;
+
+  const labels = recorrentes.map(r=> r.nome.length > 22 ? r.nome.slice(0,21)+'…' : r.nome);
+  const counts = recorrentes.map(r=> r.count);
+  const totals = recorrentes.map(r=> r.total);
+
+  if(recorrentesChart){
+    recorrentesChart.data.labels = labels;
+    recorrentesChart.data.datasets[0].data = counts;
+    recorrentesChart.data.datasets[0].totals = totals;
+    recorrentesChart.update();
+    return;
+  }
+
+  canvasEl.height = Math.max(180, recorrentes.length * 38);
+
+  recorrentesChart = new Chart(canvasEl, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Vezes lançado',
+        data: counts,
+        totals,
+        backgroundColor: '#2563EB',
+        borderRadius: 6,
+        maxBarThickness: 22,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const total = ctx.dataset.totals[ctx.dataIndex];
+              return `${ctx.parsed.x}x lançado · total ${fmt(total)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          beginAtZero: true,
+          ticks: { stepSize: 1, precision: 0, font: { size: 11 } },
+          grid: { color: '#EEF1F5' },
+        },
+        y: {
+          ticks: { font: { size: 12 } },
+          grid: { display: false },
+        }
+      }
+    }
+  });
+}
+
+function mesLabel(ym){
+  const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const [ano, mes] = ym.split('-');
+  return `${MESES_NOME[parseInt(mes,10)-1]}/${ano}`;
+}
+
+function renderDiario(){
+  const CATEGORIAS_LABEL = {fixas:'Fixas', helena:'Helena', variaveis:'Variáveis', nu:'Cartão Nu', inter:'Cartão Inter'};
+  const TIPO_ICONE = {
+    'Alimentação':'🍽️', 'Mercado':'🛒', 'Transporte':'🚗', 'Saúde':'💊',
+    'Lazer':'🎉', 'Compras':'🛍️', 'Casa':'🏠', 'Educação':'📚', 'Outros':'📦'
+  };
+
+  const todos = [];
+  ['fixas','helena','variaveis','inter'].forEach(cat=>{
+    state[cat].forEach((it, idx)=>{
+      if(it.data) todos.push({cat, idx, nome:it.nome, valor:it.valor, quem:it.quem||'Casal', data:it.data, forma:it.forma||'Dinheiro', tipo:it.tipo||'Outros'});
+    });
+  });
+  state.nu.forEach((it, idx)=>{
+    if(it.data) todos.push({cat:'nu', idx, nome:it.nome, valor:Number(it.meses[0])||0, quem:it.quem||'Casal', data:it.data, forma:it.forma||'Dinheiro', tipo:it.tipo||'Outros'});
+  });
+
+  todos.sort((a,b)=> b.data.localeCompare(a.data));
+
+  // ---------- Despesas mais recorrentes (sempre todo o período, não filtra por mês) ----------
+  const porNome = {};
+  todos.forEach(item=>{
+    const chave = item.nome.trim().toLowerCase();
+    if(!chave) return;
+    if(!porNome[chave]) porNome[chave] = {nome:item.nome, count:0, total:0};
+    porNome[chave].count += 1;
+    porNome[chave].total += item.valor;
+  });
+  const recorrentes = Object.values(porNome).filter(r=>r.count > 1).sort((a,b)=> b.count-a.count).slice(0,8);
+  const recVazio = document.getElementById('resumoRecorrentesVazio');
+  const canvasEl = document.getElementById('resumoRecorrentesChart');
+  if(recorrentes.length === 0){
+    recVazio.style.display = 'block';
+    canvasEl.style.display = 'none';
+    if(recorrentesChart){ recorrentesChart.destroy(); recorrentesChart = null; }
+  } else {
+    recVazio.style.display = 'none';
+    canvasEl.style.display = 'block';
+    desenharGraficoRecorrentes(recorrentes);
+  }
+
+  // ---------- Filtro de mês de referência ----------
+  const mesesDisponiveis = [...new Set(todos.map(i=>i.data.slice(0,7)))].sort().reverse();
+  const filtroEl = document.getElementById('diarioMesFiltro');
+  const mesAtual = todayISO().slice(0,7);
+  const valorAnterior = filtroEl.value;
+  const opcoes = [];
+  if(!mesesDisponiveis.includes(mesAtual)) opcoes.push(mesAtual); // mês atual sempre aparece, mesmo sem gastos ainda
+  opcoes.push(...mesesDisponiveis);
+  filtroEl.innerHTML = opcoes.map(ym => `<option value="${ym}">${mesLabel(ym)}</option>`).join('')
+    + `<option value="todos">Todos os meses</option>`;
+  filtroEl.value = opcoes.includes(valorAnterior) || valorAnterior === 'todos' ? valorAnterior : mesAtual;
+  const mesFiltro = filtroEl.value;
+
+  const filtrados = mesFiltro === 'todos' ? todos : todos.filter(i => i.data.slice(0,7) === mesFiltro);
+
+  // ---------- Lista de gastos do mês selecionado ----------
+  const container = document.getElementById('listaDiario');
+  const vazioNote = document.getElementById('diarioVazio');
+  container.innerHTML = '';
+  vazioNote.style.display = filtrados.length ? 'none' : 'block';
+
+  let ultimaData = null;
+  filtrados.forEach(item=>{
+    const chaveItem = `${item.cat}|${item.idx}`;
+    if(item.data !== ultimaData){
+      ultimaData = item.data;
+      const [ano,mes,dia] = item.data.split('-');
+      const header = document.createElement('div');
+      header.style.cssText = 'font-size:11.5px;font-weight:700;color:var(--texto-sec);margin:12px 0 4px;';
+      header.textContent = `${dia}/${mes}/${ano}`;
+      container.appendChild(header);
+    }
+
+    if(diarioEditando === chaveItem){
+      const box = document.createElement('div');
+      box.style.cssText = 'border:1px solid #BFDBFE;background:#F5F9FF;border-radius:10px;padding:10px;margin:6px 0;';
+      box.innerHTML = `
+        <input type="text" id="edNome_${item.cat}_${item.idx}" value="${escapeHtml(item.nome)}" style="width:100%;border:1px solid var(--borda);border-radius:8px;padding:7px;margin-bottom:6px;background:#fff;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
+          <input type="number" step="0.01" id="edValor_${item.cat}_${item.idx}" value="${item.valor}" style="flex:1 1 45%;border:1px solid var(--borda);border-radius:8px;padding:7px;background:#fff;">
+          <input type="date" id="edData_${item.cat}_${item.idx}" value="${item.data}" style="flex:1 1 45%;border:1px solid var(--borda);border-radius:8px;padding:7px;background:#fff;">
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
+          <select id="edForma_${item.cat}_${item.idx}" style="flex:1 1 45%;border:1px solid var(--borda);border-radius:8px;padding:7px;background:#fff;">
+            ${['Dinheiro','Débito','Crédito','Pix'].map(f=>`<option value="${f}" ${f===item.forma?'selected':''}>${f}</option>`).join('')}
+          </select>
+          <select id="edTipo_${item.cat}_${item.idx}" style="flex:1 1 45%;border:1px solid var(--borda);border-radius:8px;padding:7px;background:#fff;">
+            ${Object.keys(TIPO_ICONE).map(t=>`<option value="${t}" ${t===item.tipo?'selected':''}>${TIPO_ICONE[t]} ${t}</option>`).join('')}
+          </select>
+        </div>
+        <select id="edQuem_${item.cat}_${item.idx}" style="width:100%;border:1px solid var(--borda);border-radius:8px;padding:7px;margin-bottom:8px;background:#fff;">
+          ${['Casal','Alexandre','Renata'].map(q=>`<option value="${q}" ${q===item.quem?'selected':''}>${q}</option>`).join('')}
+        </select>
+        <div style="display:flex;gap:6px;">
+          <button class="add-btn" style="margin-top:0;flex:1;" onclick="salvarEdicaoDiario('${item.cat}',${item.idx})">Salvar</button>
+          <button class="add-btn" style="margin-top:0;flex:1;border-color:#FCA5A5;background:#FEF2F2;color:var(--vermelho);" onclick="excluirGastoDiario('${item.cat}',${item.idx})">Excluir</button>
+          <button class="add-btn" style="margin-top:0;flex:0 0 auto;padding:8px 12px;" onclick="cancelarEdicaoDiario()">✕</button>
+        </div>
+      `;
+      container.appendChild(box);
+    } else {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML = `
+        <div style="flex:1;">
+          <div style="font-size:13.5px;">${TIPO_ICONE[item.tipo]||'📦'} ${escapeHtml(item.nome)}</div>
+          <div style="font-size:11px;color:var(--texto-sec);">${escapeHtml(item.tipo)} · ${CATEGORIAS_LABEL[item.cat]} · ${escapeHtml(item.forma)} · ${escapeHtml(item.quem)}</div>
+        </div>
+        <div style="font-size:14px;font-weight:600;margin-right:4px;">${fmt(item.valor)}</div>
+        <button class="del" style="color:var(--azul);font-size:15px;" onclick="iniciarEdicaoDiario('${item.cat}',${item.idx})">✏️</button>
+      `;
+      container.appendChild(row);
+    }
+  });
+
+  // ---------- Resumo por tipo de gasto (mês selecionado) ----------
+  const porTipo = {};
+  filtrados.forEach(item=>{ porTipo[item.tipo] = (porTipo[item.tipo] || 0) + item.valor; });
+  const tiposOrdenados = Object.keys(porTipo).sort((a,b)=> porTipo[b]-porTipo[a]);
+  const resumoTipoDiv = document.getElementById('resumoTipoGasto');
+  const resumoTipoVazio = document.getElementById('resumoTipoVazio');
+  if(tiposOrdenados.length === 0){
+    resumoTipoDiv.innerHTML = '';
+    resumoTipoVazio.style.display = 'block';
+  } else {
+    resumoTipoVazio.style.display = 'none';
+    const maxTipo = Math.max(...tiposOrdenados.map(t=>porTipo[t]), 1);
+    resumoTipoDiv.innerHTML = tiposOrdenados.map(t => `
+      <div class="bar-wrap">
+        <div class="bar-label"><span>${TIPO_ICONE[t]||'📦'} ${t}</span><span>${fmt(porTipo[t])}</span></div>
+        <div class="bar-bg"><div class="bar-fill" style="width:${(porTipo[t]/maxTipo*100).toFixed(1)}%;background:var(--roxo);"></div></div>
+      </div>
+    `).join('');
+  }
+
+  // ---------- Resumo por forma de pagamento (mês selecionado) ----------
+  const porForma = {Dinheiro:0, 'Débito':0, 'Crédito':0, Pix:0};
+  filtrados.forEach(item=>{
+    if(porForma.hasOwnProperty(item.forma)) porForma[item.forma] += item.valor;
+  });
+  const coresForma = {Dinheiro:'#059669', 'Débito':'#2563EB', 'Crédito':'#DC2626', Pix:'#7C3AED'};
+  const maxForma = Math.max(...Object.values(porForma), 1);
+  const resumoDiv = document.getElementById('resumoFormaPagamento');
+  resumoDiv.innerHTML = Object.keys(porForma).map(f => `
+    <div class="bar-wrap">
+      <div class="bar-label"><span>${f}</span><span>${fmt(porForma[f])}</span></div>
+      <div class="bar-bg"><div class="bar-fill" style="width:${(porForma[f]/maxForma*100).toFixed(1)}%;background:${coresForma[f]};"></div></div>
+    </div>
+  `).join('');
+}
+
+// ---------- Editar/excluir um gasto diretamente na lista do Diário ----------
+function iniciarEdicaoDiario(cat, idx){
+  diarioEditando = `${cat}|${idx}`;
+  renderDiario();
+}
+function cancelarEdicaoDiario(){
+  diarioEditando = null;
+  renderDiario();
+}
+function salvarEdicaoDiario(cat, idx){
+  const nome = document.getElementById(`edNome_${cat}_${idx}`).value.trim();
+  const valor = parseFloat(document.getElementById(`edValor_${cat}_${idx}`).value);
+  const data = document.getElementById(`edData_${cat}_${idx}`).value;
+  const forma = document.getElementById(`edForma_${cat}_${idx}`).value;
+  const tipo = document.getElementById(`edTipo_${cat}_${idx}`).value;
+  const quem = document.getElementById(`edQuem_${cat}_${idx}`).value;
+
+  if(!nome || isNaN(valor) || valor <= 0 || !data) return; // campos inválidos: não salva
+
+  const item = state[cat][idx];
+  item.nome = nome;
+  item.quem = quem;
+  item.data = data;
+  item.forma = forma;
+  item.tipo = tipo;
+  if(cat === 'nu'){
+    item.meses[0] = valor;
+  } else {
+    item.valor = valor;
+  }
+
+  diarioEditando = null;
+  saveData();
+  if(cat === 'nu') renderNu(); else renderList(cat);
+  renderDashboard();
+  renderConferencia();
+  renderDiario();
+}
+function excluirGastoDiario(cat, idx){
+  state[cat].splice(idx, 1);
+  diarioEditando = null;
+  saveData();
+  if(cat === 'nu') renderNu(); else renderList(cat);
+  renderDashboard();
+  renderConferencia();
+  renderDiario();
+}
+
 // ---------- Init ----------
 function renderAll(){
   document.getElementById('rendaInput').value = state.renda || '';
+  if(document.getElementById('novoGastoData') && !document.getElementById('novoGastoData').value){
+    document.getElementById('novoGastoData').value = todayISO();
+  }
   renderList('fixas');
   renderList('helena');
   renderList('variaveis');
@@ -972,6 +1344,7 @@ function renderAll(){
   renderNu();
   renderDashboard();
   renderConferencia();
+  renderDiario();
 }
 
 function initAll(){
