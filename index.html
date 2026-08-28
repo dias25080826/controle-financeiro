@@ -27,11 +27,20 @@
     --borda:#E5E7EB;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  body{
+  html, body{
+    height:100%;
     margin:0;
+    overflow:hidden; /* a página em si nunca rola — só #scrollArea rola por dentro */
+  }
+  body{
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
     background:var(--bg);
     color:var(--texto);
+  }
+  #scrollArea{
+    height:100%;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
     padding-bottom:76px;
   }
   header{
@@ -197,6 +206,8 @@
 </style>
 </head>
 <body>
+
+<div id="scrollArea">
 
 <header>
   <h1>Controle Financeiro</h1>
@@ -388,6 +399,8 @@
   </section>
 
 </main>
+
+</div><!-- /#scrollArea -->
 
 <nav class="tabs">
   <button class="tab-btn active" data-tab="dashboard"><span class="ic">📊</span>Painel</button>
@@ -812,34 +825,8 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+    document.getElementById('scrollArea').scrollTop = 0;
   });
-});
-
-// ---------- Trava a tela parada enquanto o teclado está aberto ----------
-let scrollLockY = 0;
-function lockScroll(){
-  scrollLockY = window.scrollY;
-  document.body.style.position = 'fixed';
-  document.body.style.top = (-scrollLockY) + 'px';
-  document.body.style.left = '0';
-  document.body.style.right = '0';
-}
-function unlockScroll(){
-  document.body.style.position = '';
-  document.body.style.top = '';
-  document.body.style.left = '';
-  document.body.style.right = '';
-  window.scrollTo(0, scrollLockY);
-}
-document.addEventListener('focusin', e=>{
-  if(e.target.matches('input, select, textarea')){
-    setTimeout(lockScroll, 60); // deixa o Safari terminar o auto-scroll dele antes de travar
-  }
-});
-document.addEventListener('focusout', e=>{
-  if(e.target.matches('input, select, textarea')){
-    unlockScroll();
-  }
 });
 
 // ---------- Reconhecimento de voz nativo (Chrome/Android) quando disponível ----------
