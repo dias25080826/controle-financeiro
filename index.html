@@ -208,6 +208,40 @@
 
   <!-- DASHBOARD -->
   <section id="tab-dashboard" class="tab-panel active">
+    <div class="card" style="border:1px solid #BFDBFE;background:#F5F9FF;">
+      <h2>➕ Novo gasto</h2>
+
+      <div class="row" style="flex-wrap:wrap;gap:8px;border-bottom:none;padding-top:0;">
+        <input type="text" id="novoGastoDitado" placeholder="🎤 Diga ou digite, ex: 50 reais farmácia variável casal" style="flex:1;border:1px solid #C4B5FD;border-radius:8px;padding:8px;font-size:13.5px;background:#fff;">
+        <button type="button" id="btnMicVoz" class="add-btn" style="flex:0 0 auto;width:44px;margin-top:0;padding:8px;border-color:#C4B5FD;background:#EDE9FE;color:#7C3AED;display:none;" onclick="iniciarDitadoVoz()">🎤</button>
+      </div>
+      <button type="button" class="add-btn" style="border-color:#C4B5FD;background:#F5F3FF;color:#7C3AED;" onclick="preencherPorVoz()">Interpretar texto acima</button>
+      <div class="note" style="margin-top:6px;">No iPhone: toque no campo acima e use o microfone do próprio teclado do Safari para ditar. Depois toque em "Interpretar texto acima" para separar automaticamente em nome, valor, categoria e responsável.</div>
+
+      <div class="row" style="flex-wrap:wrap;gap:8px;border-bottom:none;padding-top:12px;">
+        <input type="text" id="novoGastoNome" placeholder="Descrição (ex: Farmácia)" style="flex:1 1 100%;border:1px solid var(--borda);border-radius:8px;padding:8px;font-size:14px;background:#fff;">
+      </div>
+      <div class="row" style="flex-wrap:wrap;gap:8px;border-bottom:none;padding-top:6px;">
+        <input type="number" id="novoGastoValor" placeholder="Valor (R$)" step="0.01" inputmode="decimal" style="flex:1 1 45%;border:1px solid var(--borda);border-radius:8px;padding:8px;font-size:14px;background:#fff;text-align:left;">
+        <select id="novoGastoCategoria" style="flex:1 1 45%;border:1px solid var(--borda);border-radius:8px;padding:8px;font-size:13px;background:#fff;">
+          <option value="fixas">Despesas Fixas</option>
+          <option value="helena">Helena</option>
+          <option value="variaveis">Variáveis</option>
+          <option value="nu">Cartão Nu</option>
+          <option value="inter">Cartão Inter</option>
+        </select>
+      </div>
+      <div class="row" style="flex-wrap:wrap;gap:8px;border-bottom:none;padding-top:6px;">
+        <select id="novoGastoQuem" style="flex:1;border:1px solid var(--borda);border-radius:8px;padding:8px;font-size:13px;background:#fff;">
+          <option value="Casal">Casal</option>
+          <option value="Alexandre">Alexandre</option>
+          <option value="Renata">Renata</option>
+        </select>
+      </div>
+      <button class="add-btn" onclick="adicionarGastoRapido()">Adicionar gasto</button>
+      <div class="note" id="novoGastoFeedback" style="min-height:14px;"></div>
+    </div>
+
     <div class="kpi-grid">
       <div class="kpi total"><div class="lbl">Total geral / mês</div><div class="val" id="kpiTotal">R$ 0</div></div>
       <div class="kpi fixas"><div class="lbl">Despesas fixas</div><div class="val" id="kpiFixas">R$ 0</div></div>
@@ -807,6 +841,136 @@ document.addEventListener('focusout', e=>{
     unlockScroll();
   }
 });
+
+// ---------- Reconhecimento de voz nativo (Chrome/Android) quando disponível ----------
+const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+if(SpeechRecognitionAPI){
+  document.getElementById('btnMicVoz').style.display = 'block';
+}
+function iniciarDitadoVoz(){
+  if(!SpeechRecognitionAPI) return;
+  const rec = new SpeechRecognitionAPI();
+  rec.lang = 'pt-BR';
+  rec.interimResults = false;
+  rec.maxAlternatives = 1;
+  const btn = document.getElementById('btnMicVoz');
+  btn.textContent = '🔴';
+  rec.onresult = (e)=>{
+    const texto = e.results[0][0].transcript;
+    document.getElementById('novoGastoDitado').value = texto;
+    preencherPorVoz();
+  };
+  rec.onerror = ()=>{ btn.textContent = '🎤'; };
+  rec.onend = ()=>{ btn.textContent = '🎤'; };
+  rec.start();
+}
+
+// ---------- Interpretar o texto ditado/digitado em nome + valor + categoria + quem ----------
+function preencherPorVoz(){
+  const raw = document.getElementById('novoGastoDitado').value.trim();
+  const feedback = document.getElementById('novoGastoFeedback');
+  if(!raw){
+    feedback.textContent = 'Digite ou dite um texto primeiro, ex: "50 reais farmácia variável casal".';
+    feedback.style.color = 'var(--vermelho)';
+    return;
+  }
+  let texto = raw.toLowerCase();
+
+  // 1) valor: primeiro número encontrado (aceita vírgula ou ponto decimal)
+  const matchValor = texto.match(/(\d+(?:[.,]\d{1,2})?)/);
+  let valor = null;
+  if(matchValor){
+    valor = parseFloat(matchValor[1].replace(',', '.'));
+    texto = texto.replace(matchValor[1], ' ');
+  }
+  // remove palavras soltas de moeda
+  texto = texto.replace(/\breais?\b|\br\$\b|\bconto(s)?\b/g, ' ');
+
+  // 2) categoria por palavra-chave
+  let categoria = 'variaveis';
+  const catKeywords = [
+    [/helena/, 'helena'],
+    [/fix[ao]/, 'fixas'],
+    [/cart[aã]o\s*nu\b|\bnu\b/, 'nu'],
+    [/inter/, 'inter'],
+    [/vari[aá]ve(l|is)/, 'variaveis'],
+  ];
+  for(const [re, cat] of catKeywords){
+    if(re.test(texto)){ categoria = cat; texto = texto.replace(re, ' '); break; }
+  }
+
+  // 3) responsável por palavra-chave
+  let quem = 'Casal';
+  if(/alexandre/.test(texto)){ quem = 'Alexandre'; texto = texto.replace(/alexandre/, ' '); }
+  else if(/renata/.test(texto)){ quem = 'Renata'; texto = texto.replace(/renata/, ' '); }
+  else if(/casal/.test(texto)){ quem = 'Casal'; texto = texto.replace(/casal/, ' '); }
+
+  // 4) o que sobrar do texto vira a descrição
+  let nome = texto.replace(/\s+/g, ' ').trim();
+  if(nome) nome = nome.charAt(0).toUpperCase() + nome.slice(1);
+
+  document.getElementById('novoGastoNome').value = nome || '';
+  document.getElementById('novoGastoValor').value = valor !== null ? valor : '';
+  document.getElementById('novoGastoCategoria').value = categoria;
+  document.getElementById('novoGastoQuem').value = quem;
+
+  if(!nome || valor === null){
+    feedback.textContent = 'Não consegui identificar tudo — confira os campos abaixo antes de adicionar.';
+    feedback.style.color = 'var(--laranja)';
+  } else {
+    feedback.textContent = 'Entendido! Confira os campos abaixo e toque em "Adicionar gasto".';
+    feedback.style.color = 'var(--verde)';
+  }
+}
+
+// ---------- Adicionar gasto rápido (a partir do Painel) ----------
+function adicionarGastoRapido(){
+  const nomeEl = document.getElementById('novoGastoNome');
+  const valorEl = document.getElementById('novoGastoValor');
+  const catEl = document.getElementById('novoGastoCategoria');
+  const quemEl = document.getElementById('novoGastoQuem');
+  const feedback = document.getElementById('novoGastoFeedback');
+
+  const nome = nomeEl.value.trim();
+  const valor = parseFloat(valorEl.value);
+  const categoria = catEl.value;
+  const quem = quemEl.value;
+
+  if(!nome){
+    feedback.textContent = 'Digite uma descrição para o gasto.';
+    feedback.style.color = 'var(--vermelho)';
+    nomeEl.focus();
+    return;
+  }
+  if(isNaN(valor) || valor <= 0){
+    feedback.textContent = 'Digite um valor válido.';
+    feedback.style.color = 'var(--vermelho)';
+    valorEl.focus();
+    return;
+  }
+
+  if(categoria === 'nu'){
+    state.nu.push({nome, meses:[valor,null,null,null,null,null], quem});
+    renderNu();
+  } else if(categoria === 'inter'){
+    state.inter.push({nome, valor, obs:'', quem});
+    renderList('inter');
+  } else {
+    state[categoria].push({nome, valor, quem});
+    renderList(categoria);
+  }
+
+  saveData();
+  renderDashboard();
+  renderConferencia();
+
+  nomeEl.value = '';
+  valorEl.value = '';
+  quemEl.value = 'Casal';
+  feedback.textContent = `"${nome}" adicionado em ${catEl.options[catEl.selectedIndex].text}.`;
+  feedback.style.color = 'var(--verde)';
+  setTimeout(()=>{ if(feedback.textContent.includes(nome)) feedback.textContent=''; }, 3500);
+}
 
 // ---------- Init ----------
 function renderAll(){
