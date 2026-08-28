@@ -100,6 +100,21 @@
     text-align:right;
     color:var(--texto);
   }
+  .row select{
+    border:none;
+    background:#F9FAFB;
+    border-radius:8px;
+    padding:6px 4px;
+    font-size:11.5px;
+    color:var(--texto-sec);
+    max-width:78px;
+  }
+  .who-chip{
+    font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:999px;display:inline-block;white-space:nowrap;
+  }
+  .who-casal{background:#E0E7FF;color:#3730A3;}
+  .who-alexandre{background:#DBEAFE;color:#1E40AF;}
+  .who-renata{background:#FCE7F3;color:#9D174D;}
   .row .del{
     background:none;
     border:none;
@@ -211,6 +226,12 @@
     </div>
 
     <div class="card">
+      <h2>Divisão por responsável</h2>
+      <div id="divisaoResponsavel"></div>
+      <div class="note">Marque cada despesa como Casal, Alexandre ou Renata nas abas de itens para refinar essa divisão.</div>
+    </div>
+
+    <div class="card">
       <h2>Distribuição por categoria</h2>
       <div id="distribuicao"></div>
     </div>
@@ -260,7 +281,7 @@
           <thead>
             <tr>
               <th style="text-align:left;min-width:110px;">Item</th>
-              <th>Set</th><th>Out</th><th>Nov</th><th>Dez</th><th>Jan</th><th>Fev</th><th></th>
+              <th>Set</th><th>Out</th><th>Nov</th><th>Dez</th><th>Jan</th><th>Fev</th><th>Quem</th><th></th>
             </tr>
           </thead>
           <tbody id="corpoNu"></tbody>
@@ -309,55 +330,57 @@ const STORAGE_KEY = 'controleFinanceiro.v1';
 const DEFAULT_DATA = {
   renda: 0,
   fixas: [
-    {nome:'Apartamento (parcela)', valor:998.92},
-    {nome:'Condomínio', valor:542.57},
-    {nome:'Energia', valor:550.00},
-    {nome:'Carro (parcela)', valor:757.00},
-    {nome:'Consórcio Apartamento', valor:881.44},
-    {nome:'Seguro', valor:183.21},
+    {nome:'Apartamento (parcela)', valor:998.92, quem:'Casal'},
+    {nome:'Condomínio', valor:542.57, quem:'Casal'},
+    {nome:'Energia', valor:550.00, quem:'Casal'},
+    {nome:'Carro (parcela)', valor:757.00, quem:'Casal'},
+    {nome:'Consórcio Apartamento', valor:881.44, quem:'Casal'},
+    {nome:'Seguro', valor:183.21, quem:'Casal'},
   ],
   helena: [
-    {nome:'Colégio', valor:692.55},
-    {nome:'Item a confirmar ("Iene/Jene")', valor:2120.00},
-    {nome:'Uber', valor:200.00},
+    {nome:'Colégio', valor:692.55, quem:'Casal'},
+    {nome:'Item a confirmar ("Iene/Jene")', valor:2120.00, quem:'Casal'},
+    {nome:'Uber', valor:200.00, quem:'Casal'},
   ],
   variaveis: [
-    {nome:'Supermercado', valor:1200.00},
-    {nome:'Gasolina', valor:500.00},
-    {nome:'Água', valor:100.00},
+    {nome:'Supermercado', valor:1200.00, quem:'Casal'},
+    {nome:'Gasolina', valor:500.00, quem:'Casal'},
+    {nome:'Água', valor:100.00, quem:'Casal'},
   ],
   nu: [
-    {nome:'Renner - João', meses:[89.95,89.95,null,null,null,null]},
-    {nome:'CCA Ana', meses:[60.01,60.01,60.01,null,null,null]},
-    {nome:'Democrata', meses:[107.44,107.44,107.44,107.44,null,null]},
-    {nome:'Dia das Mães', meses:[73.72,null,null,null,null,null]},
-    {nome:'Ígomes', meses:[96.60,96.60,null,null,null,null]},
-    {nome:'Relógio', meses:[89.80,85.00,85.00,85.00,85.00,85.00]},
-    {nome:'Mgs Comércio', meses:[64.50,null,null,null,null,null]},
-    {nome:'Hotel Fortaleza', meses:[216.16,216.16,null,null,null,null]},
-    {nome:'Malas', meses:[87.60,87.60,null,null,null,null]},
-    {nome:'Sapato Renata', meses:[105.00,105.00,null,null,null,null]},
-    {nome:'Óculos', meses:[166.00,166.00,166.00,null,null,null]},
-    {nome:'Renner', meses:[90.00,90.00,null,null,null,null]},
-    {nome:'Cama', meses:[144.83,144.83,null,null,null,null]},
-    {nome:'Vest. Helena', meses:[89.80,null,null,null,null,null]},
-    {nome:'Zara', meses:[106.70,106.70,null,null,null,null]},
-    {nome:'Bolsa Fortaleza', meses:[72.50,72.50,null,null,null,null]},
-    {nome:'Hotel SAC', meses:[61.13,61.13,61.13,null,null,null]},
-    {nome:'Cortinas (valor incerto)', meses:[413.48,null,null,null,null,null]},
-    {nome:'Fronhas', meses:[78.18,null,null,null,null,null]},
+    {nome:'Renner - João', meses:[89.95,89.95,null,null,null,null], quem:'Casal'},
+    {nome:'CCA Ana', meses:[60.01,60.01,60.01,null,null,null], quem:'Casal'},
+    {nome:'Democrata', meses:[107.44,107.44,107.44,107.44,null,null], quem:'Casal'},
+    {nome:'Dia das Mães', meses:[73.72,null,null,null,null,null], quem:'Casal'},
+    {nome:'Ígomes', meses:[96.60,96.60,null,null,null,null], quem:'Casal'},
+    {nome:'Relógio', meses:[89.80,85.00,85.00,85.00,85.00,85.00], quem:'Casal'},
+    {nome:'Mgs Comércio', meses:[64.50,null,null,null,null,null], quem:'Casal'},
+    {nome:'Hotel Fortaleza', meses:[216.16,216.16,null,null,null,null], quem:'Casal'},
+    {nome:'Malas', meses:[87.60,87.60,null,null,null,null], quem:'Casal'},
+    {nome:'Sapato Renata', meses:[105.00,105.00,null,null,null,null], quem:'Renata'},
+    {nome:'Óculos', meses:[166.00,166.00,166.00,null,null,null], quem:'Casal'},
+    {nome:'Renner', meses:[90.00,90.00,null,null,null,null], quem:'Casal'},
+    {nome:'Cama', meses:[144.83,144.83,null,null,null,null], quem:'Casal'},
+    {nome:'Vest. Helena', meses:[89.80,null,null,null,null,null], quem:'Casal'},
+    {nome:'Zara', meses:[106.70,106.70,null,null,null,null], quem:'Casal'},
+    {nome:'Bolsa Fortaleza', meses:[72.50,72.50,null,null,null,null], quem:'Casal'},
+    {nome:'Hotel SAC', meses:[61.13,61.13,61.13,null,null,null], quem:'Casal'},
+    {nome:'Cortinas (valor incerto)', meses:[413.48,null,null,null,null,null], quem:'Casal'},
+    {nome:'Fronhas', meses:[78.18,null,null,null,null,null], quem:'Casal'},
   ],
   inter: [
-    {nome:'Inter (Lipo)', valor:555.00, obs:'Pagamento único'},
-    {nome:'Curso Intuitivo', valor:283.00, obs:'Pagamento único'},
-    {nome:'Item a confirmar ("Chamiller"?)', valor:150.00, obs:'Nome pouco legível'},
-    {nome:'Relógio 2 (parcelado)', valor:173.58, obs:'Faltam 8 parcelas'},
-    {nome:'Item a confirmar ("Argentina"?)', valor:998.84, obs:'Nome pouco legível'},
-    {nome:'Itaú', valor:106.85, obs:'4 parcelas'},
-    {nome:'Item a confirmar ("Vermelho"?)', valor:147.15, obs:'Nome pouco legível'},
+    {nome:'Inter (Lipo)', valor:555.00, obs:'Pagamento único', quem:'Casal'},
+    {nome:'Curso Intuitivo', valor:283.00, obs:'Pagamento único', quem:'Casal'},
+    {nome:'Item a confirmar ("Chamiller"?)', valor:150.00, obs:'Nome pouco legível', quem:'Casal'},
+    {nome:'Relógio 2 (parcelado)', valor:173.58, obs:'Faltam 8 parcelas', quem:'Casal'},
+    {nome:'Item a confirmar ("Argentina"?)', valor:998.84, obs:'Nome pouco legível', quem:'Casal'},
+    {nome:'Itaú', valor:106.85, obs:'4 parcelas', quem:'Casal'},
+    {nome:'Item a confirmar ("Vermelho"?)', valor:147.15, obs:'Nome pouco legível', quem:'Casal'},
   ],
   conferencia: {} // { "categoria|indice": valorFatura }
 };
+
+const RESPONSAVEIS = ['Casal', 'Alexandre', 'Renata'];
 
 function loadData(){
   try{
@@ -388,6 +411,10 @@ const listConfig = {
   inter:   {containerId:'listaInter',   subtotalId:'subtotalInter', hasObs:true},
 };
 
+function selectOptionsHtml(selected){
+  return RESPONSAVEIS.map(r => `<option value="${r}" ${r===selected?'selected':''}>${r}</option>`).join('');
+}
+
 function renderList(key){
   const cfg = listConfig[key];
   const container = document.getElementById(cfg.containerId);
@@ -399,6 +426,7 @@ function renderList(key){
     row.innerHTML = `
       <input type="text" value="${escapeHtml(item.nome)}" data-key="${key}" data-idx="${idx}" data-field="nome">
       <input type="number" value="${item.valor}" step="0.01" inputmode="decimal" data-key="${key}" data-idx="${idx}" data-field="valor">
+      <select data-key="${key}" data-idx="${idx}" data-field="quem">${selectOptionsHtml(item.quem||'Casal')}</select>
       <button class="del" data-key="${key}" data-idx="${idx}">✕</button>
       ${cfg.hasObs ? `<input type="text" class="obs-input" placeholder="Observação" value="${escapeHtml(item.obs||'')}" style="flex-basis:100%;" data-key="${key}" data-idx="${idx}" data-field="obs">` : ''}
     `;
@@ -406,6 +434,9 @@ function renderList(key){
   });
   container.querySelectorAll('input').forEach(inp => {
     inp.addEventListener('input', onListInputChange);
+  });
+  container.querySelectorAll('select').forEach(sel => {
+    sel.addEventListener('change', onListInputChange);
   });
   container.querySelectorAll('.del').forEach(btn => {
     btn.addEventListener('click', onListDelete);
@@ -437,7 +468,12 @@ function onListDelete(e){
 }
 
 function addItem(key){
-  const defaults = {fixas:{nome:'Novo item', valor:0}, helena:{nome:'Novo item', valor:0}, variaveis:{nome:'Novo item', valor:0}, inter:{nome:'Novo item', valor:0, obs:''}};
+  const defaults = {
+    fixas:{nome:'Novo item', valor:0, quem:'Casal'},
+    helena:{nome:'Novo item', valor:0, quem:'Casal'},
+    variaveis:{nome:'Novo item', valor:0, quem:'Casal'},
+    inter:{nome:'Novo item', valor:0, obs:'', quem:'Casal'}
+  };
   state[key].push(Object.assign({}, defaults[key]));
   saveData();
   renderList(key);
@@ -469,6 +505,7 @@ function renderNu(){
       const v = item.meses[m];
       cells += `<td><input type="number" step="0.01" inputmode="decimal" value="${v===null||v===undefined?'':v}" data-idx="${idx}" data-mes="${m}"></td>`;
     }
+    cells += `<td><select style="font-size:10.5px;padding:3px 2px;border:none;background:#F9FAFB;border-radius:6px;" data-idx="${idx}" data-field="quem">${selectOptionsHtml(item.quem||'Casal')}</select></td>`;
     cells += `<td><button class="del" data-idx="${idx}">✕</button></td>`;
     tr.innerHTML = cells;
     tbody.appendChild(tr);
@@ -491,6 +528,13 @@ function renderNu(){
       renderConferencia();
     });
   });
+  tbody.querySelectorAll('select[data-field="quem"]').forEach(sel=>{
+    sel.addEventListener('change', e=>{
+      state.nu[e.target.dataset.idx].quem = e.target.value;
+      saveData();
+      renderDashboard();
+    });
+  });
   tbody.querySelectorAll('.del').forEach(btn=>{
     btn.addEventListener('click', e=>{
       state.nu.splice(e.target.dataset.idx, 1);
@@ -504,7 +548,7 @@ function renderNu(){
 }
 
 function addNuItem(){
-  state.nu.push({nome:'Novo item', meses:[0,null,null,null,null,null]});
+  state.nu.push({nome:'Novo item', meses:[0,null,null,null,null,null], quem:'Casal'});
   saveData();
   renderNu();
   renderDashboard();
@@ -551,6 +595,30 @@ function renderDashboard(){
     pctTexto.textContent = 'preencha a renda';
     pctBar.style.width = '0%';
   }
+
+  // divisão por responsável
+  const porResponsavel = {Casal:0, Alexandre:0, Renata:0};
+  const somaPorQuem = (lista, campoValor) => {
+    lista.forEach(it => {
+      const quem = RESPONSAVEIS.includes(it.quem) ? it.quem : 'Casal';
+      porResponsavel[quem] += Number(campoValor(it)) || 0;
+    });
+  };
+  somaPorQuem(state.fixas, i=>i.valor);
+  somaPorQuem(state.helena, i=>i.valor);
+  somaPorQuem(state.variaveis, i=>i.valor);
+  somaPorQuem(state.inter, i=>i.valor);
+  somaPorQuem(state.nu, i=>i.meses[0]);
+
+  const coresResp = {Casal:'#7C3AED', Alexandre:'#2563EB', Renata:'#DB2777'};
+  const maxResp = Math.max(...Object.values(porResponsavel), 1);
+  const divDiv = document.getElementById('divisaoResponsavel');
+  divDiv.innerHTML = RESPONSAVEIS.map(r => `
+    <div class="bar-wrap">
+      <div class="bar-label"><span>${r}</span><span>${fmt(porResponsavel[r])}</span></div>
+      <div class="bar-bg"><div class="bar-fill" style="width:${(porResponsavel[r]/maxResp*100).toFixed(1)}%;background:${coresResp[r]};"></div></div>
+    </div>
+  `).join('');
 
   // distribuição
   const cats = [
