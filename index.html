@@ -353,9 +353,7 @@
         <button type="button" class="periodo-btn" data-periodo="semana" onclick="mudarPeriodoGastos('semana')" style="flex:1;padding:7px;border-radius:8px;border:1px solid var(--borda);background:#F3F4F6;color:var(--texto-sec);font-size:12.5px;font-weight:600;">Semanal</button>
         <button type="button" class="periodo-btn" data-periodo="mes" onclick="mudarPeriodoGastos('mes')" style="flex:1;padding:7px;border-radius:8px;border:1px solid var(--borda);background:#F3F4F6;color:var(--texto-sec);font-size:12.5px;font-weight:600;">Mensal</button>
       </div>
-      <div style="position:relative;">
-        <canvas id="gastosPeriodoChart"></canvas>
-      </div>
+      <div id="gastosPeriodoLista"></div>
       <div class="note" id="gastosPeriodoVazio" style="display:none;">Nenhum gasto com data lançado ainda.</div>
     </div>
 
@@ -1032,7 +1030,6 @@ function renderSaldoCartoes(){
 
 // ---------- Gastos ao longo do tempo (Diário / Semanal / Mensal) ----------
 let gastosPeriodoModo = 'dia';
-let gastosPeriodoChart = null;
 
 function mudarPeriodoGastos(modo){
   gastosPeriodoModo = modo;
@@ -1054,50 +1051,51 @@ function inicioDaSemana(dataISO){
 }
 
 function renderGastosPorPeriodo(){
-  const canvasEl = document.getElementById('gastosPeriodoChart');
+  const listaEl = document.getElementById('gastosPeriodoLista');
   const vazioNote = document.getElementById('gastosPeriodoVazio');
-  if(!canvasEl) return;
+  if(!listaEl) return;
 
   const todos = getTodosGastosComData();
   if(todos.length === 0){
     vazioNote.style.display = 'block';
-    canvasEl.style.display = 'none';
-    if(gastosPeriodoChart){ gastosPeriodoChart.destroy(); gastosPeriodoChart = null; }
+    listaEl.innerHTML = '';
     return;
   }
   vazioNote.style.display = 'none';
-  canvasEl.style.display = 'block';
-  if(typeof Chart === 'undefined') return;
 
   const hoje = new Date();
   const MESES_ABREV = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
   const DIAS_ABREV = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-  let labels = [], valores = [];
+  let itensPeriodo = []; // {label, valor}
 
   if(gastosPeriodoModo === 'dia'){
     const dias = [];
-    for(let i=13;i>=0;i--){
+    for(let i=9;i>=0;i--){
       const d = new Date(hoje); d.setDate(hoje.getDate()-i);
       dias.push(isoFromDate(d));
     }
     const porDia = {};
     todos.forEach(it=>{ porDia[it.data] = (porDia[it.data]||0) + it.valor; });
-    labels = dias.map(iso => { const d = new Date(iso+'T00:00:00'); return `${DIAS_ABREV[d.getDay()]} ${String(d.getDate()).padStart(2,'0')}`; });
-    valores = dias.map(iso => porDia[iso] || 0);
+    itensPeriodo = dias.map(iso => {
+      const d = new Date(iso+'T00:00:00');
+      return { label: `${DIAS_ABREV[d.getDay()]} ${String(d.getDate()).padStart(2,'0')}`, valor: porDia[iso] || 0 };
+    });
   } else if(gastosPeriodoModo === 'semana'){
     const semanas = [];
     for(let i=7;i>=0;i--){
       const d = new Date(hoje); d.setDate(hoje.getDate()-i*7);
-      semanas.push(inicioDaSemana(isoFromDate(d)));
+      const ini = inicioDaSemana(isoFromDate(d));
+      if(!semanas.includes(ini)) semanas.push(ini);
     }
-    const semanasUnicas = [...new Set(semanas)];
     const porSemana = {};
     todos.forEach(it=>{
       const ini = inicioDaSemana(it.data);
       porSemana[ini] = (porSemana[ini]||0) + it.valor;
     });
-    labels = semanasUnicas.map(iso => { const [a,m,dd] = iso.split('-'); return `${dd}/${m}`; });
-    valores = semanasUnicas.map(iso => porSemana[iso] || 0);
+    itensPeriodo = semanas.map(iso => {
+      const [a,m,dd] = iso.split('-');
+      return { label: `Semana de ${dd}/${m}`, valor: porSemana[iso] || 0 };
+    });
   } else {
     const meses = [];
     for(let i=5;i>=0;i--){
@@ -1109,37 +1107,19 @@ function renderGastosPorPeriodo(){
       const ym = it.data.slice(0,7);
       porMes[ym] = (porMes[ym]||0) + it.valor;
     });
-    labels = meses.map(ym => { const [a,m] = ym.split('-'); return `${MESES_ABREV[parseInt(m,10)-1]}/${a.slice(2)}`; });
-    valores = meses.map(ym => porMes[ym] || 0);
+    itensPeriodo = meses.map(ym => {
+      const [a,m] = ym.split('-');
+      return { label: `${MESES_ABREV[parseInt(m,10)-1]}/${a.slice(2)}`, valor: porMes[ym] || 0 };
+    });
   }
 
-  if(gastosPeriodoChart){
-    gastosPeriodoChart.data.labels = labels;
-    gastosPeriodoChart.data.datasets[0].data = valores;
-    gastosPeriodoChart.update();
-    return;
-  }
-
-  canvasEl.height = 220;
-  gastosPeriodoChart = new Chart(canvasEl, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{ data: valores, backgroundColor: '#2563EB', borderRadius: 4, maxBarThickness: 28 }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: (ctx) => fmt(ctx.parsed.y) } }
-      },
-      scales: {
-        x: { ticks: { font: { size: 10.5 } }, grid: { display: false } },
-        y: { beginAtZero: true, ticks: { font: { size: 10.5 } }, grid: { color: '#EEF1F5' } },
-      }
-    }
-  });
+  const maxValor = Math.max(...itensPeriodo.map(i=>i.valor), 1);
+  listaEl.innerHTML = itensPeriodo.map(i => `
+    <div class="bar-wrap">
+      <div class="bar-label"><span>${i.label}</span><span>${fmt(i.valor)}</span></div>
+      <div class="bar-bg"><div class="bar-fill" style="width:${(i.valor/maxValor*100).toFixed(1)}%;background:var(--azul);"></div></div>
+    </div>
+  `).join('');
 }
 
 function updateNuSubtotal(){
