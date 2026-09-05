@@ -347,6 +347,19 @@
     </div>
 
     <div class="card">
+      <h2>Gastos ao longo do tempo</h2>
+      <div style="display:flex;gap:6px;margin-bottom:10px;">
+        <button type="button" class="periodo-btn active" data-periodo="dia" onclick="mudarPeriodoGastos('dia')" style="flex:1;padding:7px;border-radius:8px;border:1px solid var(--borda);background:var(--azul);color:#fff;font-size:12.5px;font-weight:600;">Diário</button>
+        <button type="button" class="periodo-btn" data-periodo="semana" onclick="mudarPeriodoGastos('semana')" style="flex:1;padding:7px;border-radius:8px;border:1px solid var(--borda);background:#F3F4F6;color:var(--texto-sec);font-size:12.5px;font-weight:600;">Semanal</button>
+        <button type="button" class="periodo-btn" data-periodo="mes" onclick="mudarPeriodoGastos('mes')" style="flex:1;padding:7px;border-radius:8px;border:1px solid var(--borda);background:#F3F4F6;color:var(--texto-sec);font-size:12.5px;font-weight:600;">Mensal</button>
+      </div>
+      <div style="position:relative;">
+        <canvas id="gastosPeriodoChart"></canvas>
+      </div>
+      <div class="note" id="gastosPeriodoVazio" style="display:none;">Nenhum gasto com data lançado ainda.</div>
+    </div>
+
+    <div class="card">
       <h2>Divisão por responsável</h2>
       <div id="divisaoResponsavel"></div>
       <div class="note">Marque cada despesa como Casal, Alexandre ou Renata nas abas de itens para refinar essa divisão.</div>
@@ -1017,6 +1030,118 @@ function renderSaldoCartoes(){
   }).join('');
 }
 
+// ---------- Gastos ao longo do tempo (Diário / Semanal / Mensal) ----------
+let gastosPeriodoModo = 'dia';
+let gastosPeriodoChart = null;
+
+function mudarPeriodoGastos(modo){
+  gastosPeriodoModo = modo;
+  document.querySelectorAll('.periodo-btn').forEach(btn=>{
+    const ativo = btn.dataset.periodo === modo;
+    btn.classList.toggle('active', ativo);
+    btn.style.background = ativo ? 'var(--azul)' : '#F3F4F6';
+    btn.style.color = ativo ? '#fff' : 'var(--texto-sec)';
+  });
+  renderGastosPorPeriodo();
+}
+
+function inicioDaSemana(dataISO){
+  const d = new Date(dataISO + 'T00:00:00');
+  const diaSemana = d.getDay(); // 0 = domingo
+  const diff = (diaSemana === 0 ? -6 : 1) - diaSemana; // volta pra segunda-feira
+  d.setDate(d.getDate() + diff);
+  return isoFromDate(d);
+}
+
+function renderGastosPorPeriodo(){
+  const canvasEl = document.getElementById('gastosPeriodoChart');
+  const vazioNote = document.getElementById('gastosPeriodoVazio');
+  if(!canvasEl) return;
+
+  const todos = getTodosGastosComData();
+  if(todos.length === 0){
+    vazioNote.style.display = 'block';
+    canvasEl.style.display = 'none';
+    if(gastosPeriodoChart){ gastosPeriodoChart.destroy(); gastosPeriodoChart = null; }
+    return;
+  }
+  vazioNote.style.display = 'none';
+  canvasEl.style.display = 'block';
+  if(typeof Chart === 'undefined') return;
+
+  const hoje = new Date();
+  const MESES_ABREV = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const DIAS_ABREV = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  let labels = [], valores = [];
+
+  if(gastosPeriodoModo === 'dia'){
+    const dias = [];
+    for(let i=13;i>=0;i--){
+      const d = new Date(hoje); d.setDate(hoje.getDate()-i);
+      dias.push(isoFromDate(d));
+    }
+    const porDia = {};
+    todos.forEach(it=>{ porDia[it.data] = (porDia[it.data]||0) + it.valor; });
+    labels = dias.map(iso => { const d = new Date(iso+'T00:00:00'); return `${DIAS_ABREV[d.getDay()]} ${String(d.getDate()).padStart(2,'0')}`; });
+    valores = dias.map(iso => porDia[iso] || 0);
+  } else if(gastosPeriodoModo === 'semana'){
+    const semanas = [];
+    for(let i=7;i>=0;i--){
+      const d = new Date(hoje); d.setDate(hoje.getDate()-i*7);
+      semanas.push(inicioDaSemana(isoFromDate(d)));
+    }
+    const semanasUnicas = [...new Set(semanas)];
+    const porSemana = {};
+    todos.forEach(it=>{
+      const ini = inicioDaSemana(it.data);
+      porSemana[ini] = (porSemana[ini]||0) + it.valor;
+    });
+    labels = semanasUnicas.map(iso => { const [a,m,dd] = iso.split('-'); return `${dd}/${m}`; });
+    valores = semanasUnicas.map(iso => porSemana[iso] || 0);
+  } else {
+    const meses = [];
+    for(let i=5;i>=0;i--){
+      const d = new Date(hoje.getFullYear(), hoje.getMonth()-i, 1);
+      meses.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+    }
+    const porMes = {};
+    todos.forEach(it=>{
+      const ym = it.data.slice(0,7);
+      porMes[ym] = (porMes[ym]||0) + it.valor;
+    });
+    labels = meses.map(ym => { const [a,m] = ym.split('-'); return `${MESES_ABREV[parseInt(m,10)-1]}/${a.slice(2)}`; });
+    valores = meses.map(ym => porMes[ym] || 0);
+  }
+
+  if(gastosPeriodoChart){
+    gastosPeriodoChart.data.labels = labels;
+    gastosPeriodoChart.data.datasets[0].data = valores;
+    gastosPeriodoChart.update();
+    return;
+  }
+
+  canvasEl.height = 220;
+  gastosPeriodoChart = new Chart(canvasEl, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ data: valores, backgroundColor: '#2563EB', borderRadius: 4, maxBarThickness: 28 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (ctx) => fmt(ctx.parsed.y) } }
+      },
+      scales: {
+        x: { ticks: { font: { size: 10.5 } }, grid: { display: false } },
+        y: { beginAtZero: true, ticks: { font: { size: 10.5 } }, grid: { color: '#EEF1F5' } },
+      }
+    }
+  });
+}
+
 function updateNuSubtotal(){
   document.getElementById('subtotalNu').textContent = fmt(nuMonthTotal(0));
 }
@@ -1126,6 +1251,7 @@ function renderDashboard(){
   `).join('');
 
   renderSaldoCartoes();
+  renderGastosPorPeriodo();
 }
 
 document.getElementById('rendaInput').addEventListener('input', e=>{
@@ -1622,13 +1748,7 @@ function mesLabel(ym){
   return `${MESES_NOME[parseInt(mes,10)-1]}/${ano}`;
 }
 
-function renderDiario(){
-  const CATEGORIAS_LABEL = {fixas:'Fixas', variaveis:'Variáveis', nu:'Cartão Nu', inter:'Cartão Inter'};
-  const TIPO_ICONE = {
-    'Alimentação':'🍽️', 'Mercado':'🛒', 'Transporte':'🚗', 'Saúde':'💊',
-    'Lazer':'🎉', 'Compras':'🛍️', 'Casa':'🏠', 'Educação':'📚', 'Outros':'📦'
-  };
-
+function getTodosGastosComData(){
   const todos = [];
   ['fixas','variaveis'].forEach(cat=>{
     state[cat].forEach((it, idx)=>{
@@ -1641,6 +1761,22 @@ function renderDiario(){
   state.inter.forEach((it, idx)=>{
     if(it.data) todos.push({cat:'inter', idx, nome:it.nome, valor:Number(it.meses[0])||0, quem:it.quem||'Casal', data:it.data, forma:it.forma||'Dinheiro', tipo:it.tipo||'Outros'});
   });
+  return todos;
+}
+
+function isoFromDate(d){
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+
+function renderDiario(){
+  const CATEGORIAS_LABEL = {fixas:'Fixas', variaveis:'Variáveis', nu:'Cartão Nu', inter:'Cartão Inter'};
+  const TIPO_ICONE = {
+    'Alimentação':'🍽️', 'Mercado':'🛒', 'Transporte':'🚗', 'Saúde':'💊',
+    'Lazer':'🎉', 'Compras':'🛍️', 'Casa':'🏠', 'Educação':'📚', 'Outros':'📦'
+  };
+
+  const todos = getTodosGastosComData();
 
   todos.sort((a,b)=> b.data.localeCompare(a.data));
 
